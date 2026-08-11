@@ -1,0 +1,333 @@
+# ONE LEFT — STEP 1 CHECKPOINT
+# Created: 2026-08-10 17:05 (BD Time)
+# Resume from this file if context is lost.
+
+============================================================
+WHAT HAS BEEN BUILT SO FAR (Step 1 — Foundation)
+============================================================
+
+## ENVIRONMENT
+- Python 3.12, Node v24, npm 11, PostgreSQL 18 (local service running)
+- Redis: Using fakeredis (in-memory, no Redis server needed)
+- DB password: postgres user → password: admin
+- DB created: one_left (postgresql://postgres:admin@localhost:5432/one_left)
+- npm packages installed: react, react-dom, react-router-dom, lucide-react, vite
+- pip packages installed: asyncpg, psycopg2-binary, fakeredis
+  (redis, fastapi, uvicorn, python-jose, passlib already existed)
+
+## PROJECT STRUCTURE
+D:\Practice\
+├── assets/               ← original assets folder (source)
+├── public/
+│   └── assets/           ← ✅ assets COPIED here for Vite to serve statically
+│       ├── cards/back/   ← all card PNGs (red-0 to wild-draw4, card-back, table-bg)
+│       └── sounds/       ← bg-music, button-click, card-deal, card-play, etc.
+├── src/
+│   ├── index.css         ✅ CREATED — Premium glassmorphic styling, card fan CSS, animations
+│   ├── App.jsx           ← NEEDS REWRITE (still has Vite default boilerplate)
+│   ├── main.jsx          ← NEEDS REWRITE (wrap with providers)
+│   ├── context/
+│   │   ├── AuthContext.jsx   ✅ CREATED — login/register/logout state, JWT persistence
+│   │   └── GameContext.jsx   ✅ CREATED — WebSocket, matchmaking, private rooms, sounds
+│   └── pages/
+│       ├── LoginRegister.jsx ✅ CREATED — Phone+password auth forms, premium glassmorphic UI
+│       ├── Dashboard.jsx     ✅ CREATED — Play Online, Private Room lobby, Match History, Stats
+│       └── GameRoom.jsx      ✅ CREATED — Full game table, card fan, chat, color picker, victory overlay
+├── backend/
+│   ├── __init__.py           ✅ CREATED
+│   └── app/
+│       ├── __init__.py       ✅ CREATED
+│       ├── config.py         ✅ CREATED — DB URL, JWT secret, settings
+│       ├── database.py       ✅ CREATED — SQLAlchemy async engine + session
+│       ├── models.py         ✅ CREATED — User, Match tables (ORM models)
+│       ├── schemas.py        ✅ CREATED — Pydantic schemas for API I/O
+│       ├── auth.py           ✅ CREATED — bcrypt hashing, JWT create/decode, get_current_user
+│       ├── redis_client.py   ✅ CREATED — fakeredis async client + rate limiter
+│       ├── game_engine.py    ✅ CREATED — Full game state machine (108 cards, all actions, AFK)
+│       ├── matchmaker.py     ✅ CREATED — Redis sorted set queue, background matchmaking loop
+│       ├── ws_manager.py     ✅ CREATED — WebSocket hub, Redis pub/sub broadcast, game actions
+│       └── main.py           ✅ CREATED — FastAPI app, all REST endpoints, WebSocket endpoint
+├── index.html            ← needs title update
+├── package.json          ← needs name update + vite proxy config
+└── vite.config.js        ← needs proxy config for /api and /ws
+
+============================================================
+WHAT IS STILL REMAINING — WITH FULL EXPLANATION
+============================================================
+
+--------------------------------------------------------------------------------
+TASK 1 — Rewrite src/App.jsx  [CRITICAL — App won't work without this]
+--------------------------------------------------------------------------------
+WHY: Vite-generated App.jsx এ এখনো default boilerplate code আছে (counter, logos etc.)।
+     এটাকে সম্পূর্ণ নতুন করে লিখতে হবে যেখানে:
+     (a) React Router দিয়ে routing হবে
+     (b) AuthContext থেকে user/loading state দেখে কোন page render হবে সেটা decide করবে
+     (c) GameContext থেকে gameState দেখে GameRoom দেখাবে কি না decide করবে
+
+WHAT TO WRITE:
+  import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+  import { useAuth } from './context/AuthContext'
+  import { useGame } from './context/GameContext'
+  import LoginRegister from './pages/LoginRegister'
+  import Dashboard from './pages/Dashboard'
+  import GameRoom from './pages/GameRoom'
+
+  Routing Logic:
+    - user নেই (not logged in)      → show <LoginRegister />
+    - user আছে + gameState আছে      → show <GameRoom />  (in an active match)
+    - user আছে + gameState নেই      → show <Dashboard />
+    - loading = true                 → show loading spinner
+
+  NOTE: App.css ফাইলটা import করার দরকার নেই, index.css যথেষ্ট।
+
+--------------------------------------------------------------------------------
+TASK 2 — Rewrite src/main.jsx  [CRITICAL — Providers ছাড়া context কাজ করবে না]
+--------------------------------------------------------------------------------
+WHY: main.jsx হলো React app-এর entry point। এখানে AuthProvider এবং GameProvider দিয়ে
+     পুরো App কে wrap করতে হবে। না হলে useAuth() বা useGame() call করলে error আসবে।
+     এখানে index.css import করতে হবে (App.jsx থেকে App.css import সরিয়ে দিতে হবে)।
+
+WHAT TO WRITE:
+  import React from 'react'
+  import ReactDOM from 'react-dom/client'
+  import App from './App.jsx'
+  import './index.css'
+  import { AuthProvider } from './context/AuthContext'
+  import { GameProvider } from './context/GameContext'
+
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <AuthProvider>
+        <GameProvider>
+          <App />
+        </GameProvider>
+      </AuthProvider>
+    </React.StrictMode>
+  )
+
+  NOTE: GameProvider কে AuthProvider এর ভেতরে রাখতে হবে কারণ GameContext এর
+        ভেতরে useAuth() call করা হয়েছে (token দরকার WebSocket connect করতে)।
+
+--------------------------------------------------------------------------------
+TASK 3 — Update index.html  [MINOR — SEO + Tab title]
+--------------------------------------------------------------------------------
+WHY: এখন tab এ "Vite + React" লেখা আসছে। "One Left" হওয়া উচিত।
+     meta description SEO এর জন্য দরকার।
+
+WHAT TO CHANGE:
+  Line: <title>Vite + React</title>
+  TO:   <title>One Left — Multiplayer Card Game</title>
+
+  ADD inside <head>:
+  <meta name="description" content="One Left is a real-time multiplayer shedding card game. Play online with friends!" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+
+--------------------------------------------------------------------------------
+TASK 4 — Update package.json  [MINOR — Naming]
+--------------------------------------------------------------------------------
+WHY: package.json এ name এখনো "vite-temp" (ভুল নামে create হয়েছিল)।
+     এটা "one-left" হওয়া উচিত।
+
+WHAT TO CHANGE:
+  Line: "name": "vite-temp"
+  TO:   "name": "one-left"
+
+--------------------------------------------------------------------------------
+TASK 5 — Update vite.config.js  [CRITICAL — Frontend থেকে Backend API call করতে হবে]
+--------------------------------------------------------------------------------
+WHY: Frontend http://localhost:5173 এ চলে, Backend http://localhost:8000 এ।
+     Browser এ cross-origin request করলে CORS error আসতে পারে। তাই Vite-এর
+     built-in dev proxy ব্যবহার করতে হবে।
+     এই proxy config না থাকলে:
+       - /api/auth/login → 404 error (backend reach হবে না)
+       - /ws/game → WebSocket connect হবে না
+
+WHAT TO WRITE in vite.config.js:
+  import { defineConfig } from 'vite'
+  import react from '@vitejs/plugin-react'
+
+  export default defineConfig({
+    plugins: [react()],
+    server: {
+      port: 5173,
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
+        '/ws': {
+          target: 'ws://localhost:8000',
+          ws: true,         ← এই line WebSocket proxy এর জন্য mandatory
+          changeOrigin: true,
+        }
+      }
+    }
+  })
+
+  NOTE: '/ws' key দিয়ে WebSocket proxy করলে browser-এ ws://localhost:5173/ws/game
+        হিসেবে connect করলেই হবে। GameContext.jsx এ ইতিমধ্যে সেভাবেই লেখা আছে।
+
+--------------------------------------------------------------------------------
+TASK 6 — Install remaining pip dependencies  [CRITICAL — Backend চালু হবে না]
+--------------------------------------------------------------------------------
+WHY: কিছু packages ইতিমধ্যে install আছে কিন্তু sqlalchemy এবং python-multipart
+     install আছে কি না verify করতে হবে।
+
+COMMAND TO RUN (D:\Practice folder থেকে):
+  pip install fastapi "uvicorn[standard]" sqlalchemy asyncpg psycopg2-binary "python-jose[cryptography]" "passlib[bcrypt]" redis fakeredis python-multipart
+
+  NOTE: quotes দরকার [cryptography] এবং [bcrypt] এর জন্য কারণ shell এ [] special character।
+
+VERIFY করতে:
+  pip show sqlalchemy fastapi uvicorn python-multipart python-jose passlib
+
+--------------------------------------------------------------------------------
+TASK 7 — Fix import issues in backend/app/main.py  [CRITICAL — Runtime error হবে]
+--------------------------------------------------------------------------------
+WHY: main.py তে দুটো জিনিস missing আছে যেগুলো runtime-এ crash করাবে:
+
+  BUG 1 — `time` module import নেই:
+    main.py তে private room create করার সময় time.time() call করা হয়েছে,
+    কিন্তু `import time` নেই। ফলে "NameError: name 'time' is not defined" আসবে।
+    FIX: main.py এর top এ `import time` যোগ করতে হবে।
+
+  BUG 2 — `uuid` module import নেই top-level এ:
+    start_private_room function এ `import uuid` inline লেখা আছে।
+    এটা কাজ করবে কিন্তু best practice নয়। একটা duplicate import আছে।
+    FIX: main.py এর top এ `import uuid` যোগ করতে হবে,
+         এবং function এর ভেতরের `import uuid` line মুছে দিতে হবে।
+
+  BUG 3 — `Optional` import missing:
+    WebSocket endpoint function signature এ `Optional[str]` আছে,
+    কিন্তু `from typing import Optional` নেই।
+    FIX: main.py তে `from typing import Optional` import করতে হবে।
+
+  CORRECTED IMPORTS for main.py top section:
+    import asyncio
+    import json
+    import random
+    import string
+    import time
+    import uuid
+    from typing import Optional
+    from contextlib import asynccontextmanager
+    ...rest of imports...
+
+--------------------------------------------------------------------------------
+TASK 8 — Write backend/test_game.py  [VERIFICATION — Auto-test before manual test]
+--------------------------------------------------------------------------------
+WHY: হাতে হাতে test করার আগে একটা automated Python script দিয়ে backend logic
+     verify করা উচিত। এটা game engine এর unit test এবং API integration test।
+
+WHAT THIS SCRIPT SHOULD TEST:
+  Test 1 — GameEngine unit test:
+    → 108 card deck generate হচ্ছে কি
+    → 2-player game শুরুতে 7 cards each পাচ্ছে কি
+    → illegal move reject হচ্ছে কি (ValueError raise হচ্ছে কি)
+    → legal move accept হচ্ছে কি এবং discard pile update হচ্ছে কি
+    → skip card turn order এ 1 জন skip হচ্ছে কি
+    → reverse card direction বদলাচ্ছে কি
+    → draw2 card পরের player 2 card পাচ্ছে কি
+    → wild card color change হচ্ছে কি
+
+  Test 2 — API integration test (httpx দিয়ে):
+    → POST /api/auth/register (phone: test_1111, password: test123) → 200, tokens=200
+    → POST /api/auth/login → 200, JWT token পাচ্ছে কি
+    → GET /api/profile with token → 200, user data পাচ্ছে কি
+    → POST /api/matchmaking/join → 200, status: searching
+    → GET /api/matchmaking/status → queue_size > 0
+
+  NOTE: WebSocket test করা command-line থেকে কঠিন, তাই সেটা manual test এ করতে হবে।
+
+  HOW TO RUN:
+    cd D:\Practice
+    python backend/test_game.py
+
+--------------------------------------------------------------------------------
+TASK 9 — Start Everything and Verify  [FINAL STEP]
+--------------------------------------------------------------------------------
+
+STEP A — Backend চালু করা:
+  Terminal 1 (D:\Practice এ):
+    python -m uvicorn backend.app.main:app --reload --port 8000
+
+  সফল হলে এই message দেখা যাবে:
+    "INFO:     Uvicorn running on http://0.0.0.0:8000"
+    "INFO:     Application startup complete."
+
+  যদি error আসে:
+    → "ModuleNotFoundError" → TASK 6 এর pip install আবার run করো
+    → "ImportError" → TASK 7 এর import fix করো
+    → Port already in use → netstat -ano | findstr 8000 দিয়ে kill করো
+
+STEP B — Frontend চালু করা:
+  Terminal 2 (D:\Practice এ):
+    npm run dev
+
+  সফল হলে:
+    "Local: http://localhost:5173/"
+
+STEP C — Backend API Docs verify করা:
+  Browser এ যাও: http://localhost:8000/docs
+  সেখানে সব API endpoint গুলো দেখা যাওয়া উচিত (Swagger UI)।
+  এখান থেকে সরাসরি test করা যাবে।
+
+============================================================
+MANUAL TEST CHECKLIST (after resuming)
+============================================================
+1. Open http://localhost:5173 → should show login page (glassmorphic UI)
+2. Register user 1 (phone: 1111, password: 123456) → should auto-login, see Dashboard with 200 tokens
+3. Open incognito tab → register user 2 (phone: 2222, password: 123456)
+4. Both tabs: click "Play Online" → within 5 seconds both should enter GameRoom
+   (server matches after 5s if <4 players in queue)
+5. In Game: try playing a card that doesn't match color or value → error alert should appear
+6. Play a valid card → card should appear on discard pile in BOTH browser tabs simultaneously
+7. Play a Skip card → verify the skipped player's turn is bypassed
+8. Play a Wild card → color picker modal should appear, select a color
+9. When someone has 1 card left → "CATCH THEM!" button should appear for opponents
+10. Yell "ONE LEFT" (Y key or button) before being caught → penalty avoided
+11. Refresh one browser tab (simulate disconnect) → other players see "(DC)" status
+    → Refresh tab reconnects within 30s → game resumes exactly where it left off
+12. Complete a game (play all cards) → Victory/Defeat overlay appears with correct winner
+13. Click "Return to Dashboard" → match appears in Match History with correct outcome
+14. Test on mobile viewport: Chrome F12 → Toggle device toolbar → select iPhone → UI should adapt
+15. Test 4-player match: open 4 browser tabs (use 2 incognito + 2 profiles if needed)
+
+============================================================
+BACKEND START COMMANDS (quick reference)
+============================================================
+# Install deps:
+pip install fastapi "uvicorn[standard]" sqlalchemy "python-jose[cryptography]" "passlib[bcrypt]" python-multipart
+
+# Start backend (from D:\Practice):
+python -m uvicorn backend.app.main:app --reload --port 8000
+
+# Start frontend (from D:\Practice):
+npm run dev
+
+# Run automated tests:
+python backend/test_game.py
+
+# API Docs (backend must be running):
+http://localhost:8000/docs
+
+============================================================
+KEY DESIGN DECISIONS (do not change these in future steps)
+============================================================
+- Auth: JWT tokens, stored in localStorage, sent as "Authorization: Bearer <token>" header
+- WebSocket URL: ws://localhost:5173/ws/game?token=<jwt>  ← Vite proxy করে 8000 এ পাঠায়
+- Redis: fakeredis in-memory (no external Redis process needed)
+- Game state: stored in Redis as JSON under key "game:{game_id}"
+- Matchmaking queue: Redis sorted set "matchmaking_queue" (score = timestamp)
+  → 4 players হলে তাৎক্ষণিক match
+  → 2-3 players + 5 seconds wait হলে match (timeout fallback)
+- Pub/Sub channel: "game_channel:{game_id}" for broadcasting state updates
+- Asset URLs: /assets/cards/back/{color}-{value}.png (served by Vite from public/)
+- DB: PostgreSQL, tables: users, matches
+- Token grant: 200 tokens on signup (display only, no economy logic yet — Step 2)
+- Private rooms: REST-polled lobby (every 2s) + WS start notification
+- Card naming convention: {color}-{value}.png e.g. red-5.png, blue-draw2.png, wild.png
+- Turn timeout: 25 seconds → auto draw + skip. After 2 warnings → forfeit
+- Disconnect grace period: 30 seconds → after that opponent wins
+- "One Left" mechanic: yell before opponent catches → no penalty. Caught without yelling → draw 2
+
