@@ -198,7 +198,26 @@ export default function Dashboard() {
     }
   };
   
+  // Ad-reward flow — server-verified:
+  // 1. /api/ads/start issues a one-time, server-timestamped token BEFORE the ad opens.
+  // 2. We open the ad and wait (countdown + focus check).
+  // 3. /api/ads/reward is called WITH that token; the backend checks it's unused,
+  //    belongs to this user, and that enough time has actually elapsed server-side
+  //    before granting tokens. This closes the old client-side-trust hole where
+  //    /api/ads/reward could be called directly (e.g. via devtools) to farm tokens.
   const handleWatchAd = async () => {
+    let adToken;
+    try {
+      const startData = await apiFetch('/api/ads/start', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      adToken = startData.token;
+    } catch (e) {
+      showToast(e.message || 'Could not start ad. Please try again.', 'error');
+      return;
+    }
+
     // Open Adsterra direct link in a new tab
     const ADSTERRA_LINK = 'https://www.effectivecpmnetwork.com/efg5sxzhuz?key=5c582272c64ee9504631bcd19055c01e';
     window.open(ADSTERRA_LINK, '_blank', 'noopener,noreferrer');
@@ -220,11 +239,10 @@ export default function Dashboard() {
             document.removeEventListener('visibilitychange', checkFocus);
             setAdCountdown(null);
             
-            // Grant tokens
+            // Grant tokens — backend validates the ad session token
             (async () => {
               try {
-                // We pass self_reported=true since this is a client-side verified flow
-                const data = await apiFetch('/api/ads/reward?self_reported=true', {
+                const data = await apiFetch(`/api/ads/reward?token=${encodeURIComponent(adToken)}`, {
                   method: 'POST',
                   headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
