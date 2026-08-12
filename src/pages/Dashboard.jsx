@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { LogOut, Coins, Play, Plus, Users, Trophy, Music, Volume2, VolumeX, Pause, X, Video, Settings, Info, User } from 'lucide-react';
 import PokerFusionRules from '../components/PokerFusionRules';
+import { apiFetch } from '../config/api';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -72,15 +73,12 @@ export default function Dashboard() {
   const fetchHistory = async () => {
     setLoadingHistory(true);
     try {
-      const response = await fetch('/api/profile/history', {
+      const data = await apiFetch('/api/profile/history', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setHistoryData(data);
-      }
+      setHistoryData(data);
     } catch (e) {
-      console.error("Error fetching match history:", e);
+      console.error("Error fetching match history:", e.message);
     } finally {
       setLoadingHistory(false);
     }
@@ -112,25 +110,29 @@ export default function Dashboard() {
   // Poll private room updates
   useEffect(() => {
     let interval;
+    let cancelled = false;
+
     if (privateRoom && matchmakingStatus === 'idle') {
       const pollRoom = async () => {
         try {
-          const res = await fetch(`/api/game/private-room/${privateRoom.code}`, {
+          const data = await apiFetch(`/api/game/private-room/${privateRoom.code}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           });
-          if (res.ok) {
-            const data = await res.json();
-            setPrivateRoom(data);
-          } else {
-            setPrivateRoom(null);
-          }
+          if (!cancelled) setPrivateRoom(data);
         } catch (e) {
-          console.error(e);
+          // Only drop the room on a real "not found" (404) or auth (401/403) response.
+          // Network hiccups / temporary server issues should NOT kick the player out.
+          if (e.status === 404 || e.status === 401 || e.status === 403) {
+            if (!cancelled) setPrivateRoom(null);
+          } else {
+            console.error('Room poll failed (will retry):', e.message);
+          }
         }
       };
       interval = setInterval(pollRoom, 2000);
     }
     return () => {
+      cancelled = true;
       if (interval) clearInterval(interval);
     };
   }, [privateRoom, matchmakingStatus]);
@@ -140,38 +142,33 @@ export default function Dashboard() {
     setProcessingPayment(true);
     try {
       // 1. Create Payment
-      let res = await fetch(`/api/payments/bkash/create?tier_id=${tier_id}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      let data = await res.json();
-      
-      if (!res.ok) {
-        if (data.detail === "PHONE_REQUIRED") {
+      let data;
+      try {
+        data = await apiFetch(`/api/payments/bkash/create?tier_id=${tier_id}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+      } catch (err) {
+        if (err.data?.detail === "PHONE_REQUIRED") {
           setPendingAmount(tier_id);
           setShowPhoneModal(true);
           setShowWallet(false);
           setProcessingPayment(false);
           return;
         }
-        throw new Error(data.detail || "Payment creation failed");
+        throw err;
       }
-      
+
       const paymentID = data.paymentID;
       
       // Simulate user redirect delay for sandbox
       await new Promise(r => setTimeout(r, 1500));
       
       // 2. Execute Payment
-      res = await fetch(`/api/payments/bkash/execute?paymentID=${paymentID}`, {
+      data = await apiFetch(`/api/payments/bkash/execute?paymentID=${paymentID}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || "Payment execution failed");
-      }
-      data = await res.json();
       
       setTokenBalance(data.tokens);
       showToast("Tokens added successfully!", 'success');
@@ -184,12 +181,10 @@ export default function Dashboard() {
 
   const submitPhone = async () => {
     try {
-      const res = await fetch(`/api/profile/phone?phone=${encodeURIComponent(phoneInput)}`, {
+      await apiFetch(`/api/profile/phone?phone=${encodeURIComponent(phoneInput)}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to update phone');
       
       // Refresh user context or just proceed
       setShowPhoneModal(false);
@@ -229,19 +224,14 @@ export default function Dashboard() {
             (async () => {
               try {
                 // We pass self_reported=true since this is a client-side verified flow
-                const res = await fetch('/api/ads/reward?self_reported=true', {
+                const data = await apiFetch('/api/ads/reward?self_reported=true', {
                   method: 'POST',
                   headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
-                const data = await res.json();
-                if (res.ok) {
-                  setTokenBalance(data.tokens);
-                  showToast(`✅ Ad reward claimed! +20 tokens. (${data.views_today}/5 today)`, 'success');
-                } else {
-                  showToast(data.detail || 'Could not claim reward.', 'error');
-                }
+                setTokenBalance(data.tokens);
+                showToast(`✅ Ad reward claimed! +20 tokens. (${data.views_today}/5 today)`, 'success');
               } catch (e) {
-                console.error(e);
+                showToast(e.message || 'Could not claim reward.', 'error');
               }
             })();
           }
@@ -659,44 +649,6 @@ export default function Dashboard() {
               >
                 Stay
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showSettings && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
-          <div className="glass-panel" style={{ width: '350px', padding: '30px', position: 'relative' }}>
-            <button onClick={() => setShowSettings(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
-              <X size={20} />
-            </button>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px' }}>Audio Settings</h2>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div>
-                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
-                  <span>Master Volume</span>
-                  <span>{Math.round(masterVolume * 100)}%</span>
-                </label>
-                <input type="range" min="0" max="1" step="0.01" value={masterVolume} onChange={e => setMasterVolume(parseFloat(e.target.value))} style={{ width: '100%' }} />
-              </div>
-              <div>
-                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
-                  <span>Music Volume</span>
-                  <span>{Math.round(musicVolume * 100)}%</span>
-                </label>
-                <input type="range" min="0" max="1" step="0.01" value={musicVolume} onChange={e => setMusicVolume(parseFloat(e.target.value))} style={{ width: '100%' }} />
-              </div>
-              <div>
-                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
-                  <span>SFX Volume</span>
-                  <span>{Math.round(sfxVolume * 100)}%</span>
-                </label>
-                <input type="range" min="0" max="1" step="0.01" value={sfxVolume} onChange={e => setSfxVolume(parseFloat(e.target.value))} style={{ width: '100%' }} />
-              </div>
             </div>
           </div>
         </div>
