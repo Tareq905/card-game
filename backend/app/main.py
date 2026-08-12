@@ -995,4 +995,13 @@ async def websocket_game(websocket: WebSocket, token: Optional[str] = None):
         except Exception:
             await ws_manager.disconnect(user_id, websocket, db)
 
-app.mount("/static", StaticFiles(directory="uploads"), name="static")
+# ============================================================
+# STATIC FILES
+# ============================================================
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(os.path.join(UPLOAD_DIR, "avatars"), exist_ok=True)
+os.makedirs(os.path.join(UPLOAD_DIR, "music"), exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=UPLOAD_DIR), name="static")
