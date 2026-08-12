@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
-import { Send, LogOut, MessageCircle, Volume2, VolumeX, ShieldAlert, Check, ShieldX } from 'lucide-react';
+import { Send, LogOut, MessageCircle, Volume2, VolumeX, ShieldAlert, Check, ShieldX, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function GameRoom() {
   const { user } = useAuth();
@@ -18,7 +18,38 @@ export default function GameRoom() {
   const [pokerBonusToast, setPokerBonusToast] = useState(null);
   const prevPokerBonusRef = useRef(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [chatMinimized, setChatMinimized] = useState(false);
+  const [chatPos, setChatPos] = useState({ x: null, y: null }); // null = default CSS position
+  const chatDragRef = useRef(null);
+  const isDraggingChat = useRef(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const [draggedCardId, setDraggedCardId] = useState(null);
+  const [dropHighlight, setDropHighlight] = useState(false);
 
+  // Draggable chat panel
+  const onChatPointerDown = useCallback((e) => {
+    // Only drag from header, ignore buttons inside
+    if (e.target.closest('button')) return;
+    isDraggingChat.current = true;
+    const panel = chatDragRef.current;
+    const rect = panel.getBoundingClientRect();
+    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    panel.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onChatPointerMove = useCallback((e) => {
+    if (!isDraggingChat.current) return;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const panel = chatDragRef.current;
+    const pw = panel.offsetWidth, ph = panel.offsetHeight;
+    const newX = Math.max(0, Math.min(e.clientX - dragOffset.current.x, vw - pw));
+    const newY = Math.max(0, Math.min(e.clientY - dragOffset.current.y, vh - ph));
+    setChatPos({ x: newX, y: newY });
+  }, []);
+
+  const onChatPointerUp = useCallback(() => {
+    isDraggingChat.current = false;
+  }, []);
 
   // Shuffled table ambient color per match
   useEffect(() => {
@@ -433,8 +464,36 @@ export default function GameRoom() {
           )}
         </div>
 
-        {/* Discard Pile */}
-        <div className="discard-pile-ui">
+        {/* Discard Pile — also acts as drop target */}
+        <div
+          className="discard-pile-ui"
+          onDragOver={(e) => { if (draggedCardId && isMyTurn) { e.preventDefault(); setDropHighlight(true); } }}
+          onDragLeave={() => setDropHighlight(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDropHighlight(false);
+            if (draggedCardId && isMyTurn) {
+              const card = myPlayer?.hand.find(c => c.id === draggedCardId);
+              if (card) playSelectedCard(card);
+              setDraggedCardId(null);
+              setSelectedCardId(null);
+            }
+          }}
+          onTouchEnd={(e) => {
+            // Touch drop: check if finger ended over discard area
+            if (!draggedCardId || !isMyTurn) return;
+            const touch = e.changedTouches[0];
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (el && el.closest('.discard-pile-ui')) {
+              const card = myPlayer?.hand.find(c => c.id === draggedCardId);
+              if (card) playSelectedCard(card);
+              setDraggedCardId(null);
+              setSelectedCardId(null);
+            }
+            setDropHighlight(false);
+          }}
+          style={dropHighlight ? { boxShadow: '0 0 30px rgba(16,185,129,0.7)', border: '2px solid var(--accent-green)' } : {}}
+        >
           {gameState.discard_top ? (
             <div className="discard-top-card" style={{
               backgroundImage: `url(${gameState.discard_top.asset_path})`
@@ -445,77 +504,115 @@ export default function GameRoom() {
         </div>
       </div>
 
-      {/* Chat Sidebar Overlay */}
-      <div className="glass-panel chat-drawer">
-        <div style={{
-          padding: '15px 20px',
-          borderBottom: '1px solid var(--bg-panel-border)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <MessageCircle size={16} />
-          <h3 style={{ fontSize: '14px', fontWeight: 700 }}>Match Chat</h3>
-        </div>
-        <div style={{
-          flex: 1,
-          padding: '15px',
-          overflowY: 'auto',
+      {/* Chat Panel — draggable + minimizable */}
+      <div
+        ref={chatDragRef}
+        className="glass-panel"
+        onPointerMove={onChatPointerMove}
+        onPointerUp={onChatPointerUp}
+        style={{
+          position: 'fixed',
+          ...(chatPos.x !== null
+            ? { left: chatPos.x, top: chatPos.y }
+            : { right: 20, top: 80 }
+          ),
+          width: '300px',
+          zIndex: 100,
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px'
-        }}>
-          {chatMessages.map((msg, idx) => (
-            <div key={idx} style={{
-              background: 'rgba(255,255,255,0.02)',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px'
-            }}>
-              <strong style={{ color: 'var(--accent-blue)', fontSize: '12px', display: 'block' }}>{msg.sender}</strong>
-              <span style={{ color: '#fff' }}>{msg.text}</span>
-            </div>
-          ))}
-          {/* Also show system messages in chat drawer */}
-          {gameState.system_messages?.map((msg, idx) => (
-            <div key={`sys_${idx}`} style={{
-              background: 'rgba(59, 130, 246, 0.05)',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              border: '1px solid rgba(59, 130, 246, 0.1)',
-              color: 'var(--text-secondary)'
-            }}>
-              {msg}
-            </div>
-          ))}
-        </div>
-        <form onSubmit={handleSendChat} style={{
-          padding: '12px',
-          borderTop: '1px solid var(--bg-panel-border)',
-          display: 'flex',
-          gap: '8px'
-        }}>
-          <input
-            type="text"
-            placeholder="Type message..."
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            style={{
-              flex: 1,
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid var(--bg-panel-border)',
-              borderRadius: '8px',
-              padding: '8px 12px',
-              color: 'white',
-              fontSize: '13px',
-              outline: 'none'
-            }}
-          />
-          <button type="submit" className="btn-primary" style={{ padding: '8px 12px', borderRadius: '8px' }}>
-            <Send size={14} />
+          overflow: 'hidden',
+          transition: isDraggingChat.current ? 'none' : 'height 0.2s ease',
+          height: chatMinimized ? '48px' : '420px',
+          userSelect: 'none',
+        }}
+      >
+        {/* Draggable Header */}
+        <div
+          onPointerDown={onChatPointerDown}
+          style={{
+            padding: '12px 16px',
+            borderBottom: chatMinimized ? 'none' : '1px solid var(--bg-panel-border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'grab',
+            flexShrink: 0,
+          }}
+        >
+          <MessageCircle size={16} />
+          <h3 style={{ fontSize: '14px', fontWeight: 700, flex: 1 }}>Match Chat</h3>
+          <button
+            onClick={() => setChatMinimized(m => !m)}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+            title={chatMinimized ? 'Expand' : 'Minimize'}
+          >
+            {chatMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
           </button>
-        </form>
+        </div>
+
+        {!chatMinimized && (
+          <>
+            <div style={{
+              flex: 1,
+              padding: '12px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              {chatMessages.map((msg, idx) => (
+                <div key={idx} style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  fontSize: '13px'
+                }}>
+                  <strong style={{ color: 'var(--accent-blue)', fontSize: '12px', display: 'block' }}>{msg.sender}</strong>
+                  <span style={{ color: '#fff' }}>{msg.text}</span>
+                </div>
+              ))}
+              {gameState.system_messages?.map((msg, idx) => (
+                <div key={`sys_${idx}`} style={{
+                  background: 'rgba(59, 130, 246, 0.05)',
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  border: '1px solid rgba(59, 130, 246, 0.1)',
+                  color: 'var(--text-secondary)'
+                }}>
+                  {msg}
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleSendChat} style={{
+              padding: '10px',
+              borderTop: '1px solid var(--bg-panel-border)',
+              display: 'flex',
+              gap: '8px',
+              flexShrink: 0,
+            }}>
+              <input
+                type="text"
+                placeholder="Type message..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid var(--bg-panel-border)',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  color: 'white',
+                  fontSize: '13px',
+                  outline: 'none'
+                }}
+              />
+              <button type="submit" className="btn-primary" style={{ padding: '8px 12px', borderRadius: '8px', flexShrink: 0 }}>
+                <Send size={14} />
+              </button>
+            </form>
+          </>
+        )}
       </div>
 
       {/* User Hand and Bottom Actions */}
@@ -576,14 +673,34 @@ export default function GameRoom() {
             return (
               <div
                 key={card.id}
+                draggable={isMyTurn}
                 onClick={() => handleCardClick(card)}
                 onDoubleClick={() => {
                   if (isMyTurn) playSelectedCard(card);
                 }}
-                className={`card-item ${isSelected ? 'selected' : ''}`}
+                onDragStart={(e) => {
+                  if (!isMyTurn) { e.preventDefault(); return; }
+                  setDraggedCardId(card.id);
+                  setSelectedCardId(card.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragEnd={() => setDraggedCardId(null)}
+                // Touch drag support
+                onTouchStart={() => {
+                  if (!isMyTurn) return;
+                  setDraggedCardId(card.id);
+                  setSelectedCardId(card.id);
+                }}
+                onTouchEnd={() => {
+                  // Touch drop handled on discard-pile-ui
+                  setTimeout(() => setDraggedCardId(null), 100);
+                }}
+                className={`card-item ${isSelected ? 'selected' : ''} ${draggedCardId === card.id ? 'dragging' : ''}`}
                 style={{
                   backgroundImage: `url(${card.asset_path})`,
                   ...getCardStyle(idx, myPlayer.hand.length, isSelected),
+                  cursor: isMyTurn ? 'grab' : 'default',
+                  opacity: draggedCardId === card.id ? 0.5 : 1,
                 }}
               />
             );

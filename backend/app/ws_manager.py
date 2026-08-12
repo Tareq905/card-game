@@ -30,21 +30,47 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections[user_id] = websocket
 
-    async def disconnect(self, user_id: int, db: AsyncSession):
-        if user_id in self.active_connections:
+    async def disconnect(self, user_id: int, websocket: WebSocket, db: AsyncSession):
+        if self.active_connections.get(user_id) == websocket:
             del self.active_connections[user_id]
 
-        # Handle game disconnection logic
-        game_id = self.user_to_game.get(user_id)
-        if game_id:
-            redis = get_redis_client()
-            game_data = await redis.get(f"{GAME_PREFIX}{game_id}")
-            if game_data:
-                game_state = json.loads(game_data)
-                session = GameSession.from_json(game_state)
-                session.handle_disconnect(user_id)
-                await redis.set(f"{GAME_PREFIX}{game_id}", json.dumps(session.to_json()))
-                await self.publish_game_update(game_id)
+            # Handle game disconnection logic
+            game_id = self.user_to_game.get(user_id)
+            if game_id:
+                redis = get_redis_client()
+                game_data = await redis.get(f"{GAME_PREFIX}{game_id}")
+                if game_data:
+                    game_state = json.loads(game_data)
+                    session = GameSession.from_json(game_state)
+                    session.handle_disconnect(user_id)
+                    await redis.set(f"{GAME_PREFIX}{game_id}", json.dumps(session.to_json()))
+                    await self.publish_game_update(game_id)
+
+    async def notify_user(self, user_id: int, event_type: str, data: dict = None):
+        """Send a typed notification to a single connected user."""
+        ws = self.active_connections.get(user_id)
+        if ws:
+            try:
+                payload = {"type": event_type}
+                if data:
+                    payload.update(data)
+                await ws.send_json(payload)
+            except Exception:
+                pass
+
+    async def broadcast(self, event_type: str, data: dict = None):
+        """Send a typed notification to ALL connected users."""
+        payload = {"type": event_type}
+        if data:
+            payload.update(data)
+        dead = []
+        for uid, ws in self.active_connections.items():
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                dead.append(uid)
+        for uid in dead:
+            self.active_connections.pop(uid, None)
 
     async def register_player_to_game(self, user_id: int, game_id: str):
         self.user_to_game[user_id] = game_id
@@ -168,6 +194,18 @@ class ConnectionManager:
 
             action = payload.get("action")
             user_phone = next((p["phone"] for p in session.players if p["id"] == user_id), "Player")
+
+            if action == "get_game_state":
+                player_view = session.get_player_view(user_id)
+                if user_id in self.active_connections:
+                    try:
+                        await self.active_connections[user_id].send_json({
+                            "type": "game_state",
+                            "data": player_view
+                        })
+                    except Exception:
+                        pass
+                return
 
             if action == "play_card":
                 card_id = payload.get("card_id")

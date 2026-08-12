@@ -226,6 +226,12 @@ body {
   box-shadow: 0 0 30px rgba(255,255,255,0.6), 0 0 15px rgba(255,255,255,0.3) !important;
 }
 
+.card-item.dragging {
+  opacity: 0.45;
+  filter: drop-shadow(0 0 12px rgba(16,185,129,0.8));
+  cursor: grabbing;
+}
+
 /* Discard & Draw piles */
 .play-area {
   display: flex;
@@ -298,8 +304,9 @@ body {
 }
 
 @media (max-width: 768px) {
+  /* Chat panel stacks to bottom on tiny screens */
   .chat-drawer {
-    display: none; /* hidden on small screen or toggleable */
+    display: none;
   }
 }
 
@@ -335,4 +342,93 @@ body {
 @keyframes fadeInDown {
   from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── Toast Notifications ───────────────────── */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 90%;
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: toastFadeIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toast:hover {
+  transform: scale(1.02);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.toast-info {
+  background: rgba(59, 130, 246, 0.85); /* Blue */
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.toast-success {
+  background: rgba(16, 185, 129, 0.85); /* Green */
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.toast-error {
+  background: rgba(239, 68, 68, 0.9); /* Red */
+  border-color: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2), 0 10px 25px rgba(0,0,0,0.4);
+}
+
+.toast-message {
+  flex: 1;
+  margin-right: 15px;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.toast-close:hover {
+  color: #fff;
+}
+
+@keyframes toastFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }

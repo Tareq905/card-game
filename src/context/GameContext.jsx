@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
+import { useToast } from './ToastContext';
 
 const GameContext = createContext(null);
 
 export const GameProvider = ({ children }) => {
-  const { token } = useAuth();
+  const { token, fetchProfile, logout } = useAuth();
+  const { showToast } = useToast();
   const [gameState, setGameState] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -77,6 +79,17 @@ export const GameProvider = ({ children }) => {
           setMatchmakingStatus('matched');
           playSound('shuffle');
           break;
+        case 'profile_update':
+          if (fetchProfile) fetchProfile();
+          break;
+        case 'global_update':
+          if (fetchProfile) fetchProfile();
+          window.dispatchEvent(new CustomEvent('global_update'));
+          break;
+        case 'banned':
+          showToast('Your account has been banned by an admin.', 'error');
+          setTimeout(() => { if (logout) logout(); }, 2500);
+          break;
         case 'game_state':
           const oldState = gameState;
           const newState = message.data;
@@ -111,7 +124,7 @@ export const GameProvider = ({ children }) => {
           setChatMessages(prev => [...prev, message]);
           break;
         case 'error':
-          alert(message.message);
+          showToast(message.message, 'error');
           break;
         case 'quit_ack':
           // Server confirmed the game exit — no action needed (state already cleared optimistically)
@@ -316,6 +329,19 @@ export const GameProvider = ({ children }) => {
     disconnectSocket();
     setTimeout(connectSocket, 1000);
   };
+
+  // Fallback: If matched but gameState is missing, request it from the server
+  useEffect(() => {
+    if (matchmakingStatus === 'matched' && !gameState) {
+      const timer = setTimeout(() => {
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+          console.log("Game state missing after match_found. Requesting manually...");
+          socketRef.current.send(JSON.stringify({ action: 'get_game_state' }));
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [matchmakingStatus, gameState]);
 
   return (
     <GameContext.Provider

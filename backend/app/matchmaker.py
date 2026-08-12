@@ -72,7 +72,7 @@ class Matchmaker:
             match_count = 4
         elif oldest_member_raw:
             _, oldest_score = oldest_member_raw[0]
-            if time.time() - oldest_score >= 60.0:  # 60-second timeout
+            if time.time() - oldest_score >= 30.0:  # 30-second timeout
                 should_match = True
                 match_count = queue_size
 

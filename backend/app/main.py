@@ -559,6 +559,8 @@ async def admin_ban_user(
     from .ws_manager import ws_manager
     if user_id in ws_manager.active_connections:
         try:
+            await ws_manager.notify_user(user_id, "banned")
+            await asyncio.sleep(0.5)
             await ws_manager.active_connections[user_id].close()
         except Exception:
             pass
@@ -668,6 +670,7 @@ async def upload_theme_song(file: UploadFile = File(...), title: str = Form(...)
     db.add(song)
     await db.commit()
     await db.refresh(song)
+    await ws_manager.broadcast("global_update")
     return song
 
 @app.get("/api/theme-songs")
@@ -689,6 +692,7 @@ async def delete_theme_song(song_id: int, admin: User = Depends(require_admin), 
         pass
     await db.delete(song)
     await db.commit()
+    await ws_manager.broadcast("global_update")
     return {"status": "deleted"}
 
 # ============================================================
@@ -979,6 +983,7 @@ async def websocket_game(websocket: WebSocket, token: Optional[str] = None):
                 session.handle_reconnect(user_id)
                 await redis.set(f"game:{active_game_id}", json.dumps(session.to_json()))
                 await ws_manager.publish_game_update(active_game_id)
+                await ws_manager._send_game_state_to_local_players(active_game_id)
 
         try:
             while True:
@@ -986,8 +991,8 @@ async def websocket_game(websocket: WebSocket, token: Optional[str] = None):
                 payload = json.loads(data)
                 await ws_manager.handle_game_action(user_id, payload, db)
         except WebSocketDisconnect:
-            await ws_manager.disconnect(user_id, db)
+            await ws_manager.disconnect(user_id, websocket, db)
         except Exception:
-            await ws_manager.disconnect(user_id, db)
+            await ws_manager.disconnect(user_id, websocket, db)
 
 app.mount("/static", StaticFiles(directory="uploads"), name="static")

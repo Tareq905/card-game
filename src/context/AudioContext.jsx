@@ -26,7 +26,7 @@ export const AudioProvider = ({ children }) => {
   };
 
   // Fetch theme songs from backend
-  useEffect(() => {
+  const loadThemeSongs = () => {
     fetch('/api/theme-songs')
       .then(res => res.json())
       .then(data => {
@@ -42,6 +42,19 @@ export const AudioProvider = ({ children }) => {
         }
       })
       .catch(console.error);
+  };
+
+  useEffect(() => {
+    loadThemeSongs();
+
+    const handleGlobalUpdate = () => {
+      loadThemeSongs();
+    };
+
+    window.addEventListener('global_update', handleGlobalUpdate);
+    return () => {
+      window.removeEventListener('global_update', handleGlobalUpdate);
+    };
   }, []);
 
   // Create a single <audio> element once — kept alive in ref

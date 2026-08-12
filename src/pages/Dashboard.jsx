@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { useAudio } from '../context/AudioContext';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
 import { LogOut, Coins, Play, Plus, Users, Trophy, Music, Volume2, VolumeX, Pause, X, Video, Settings, Info, User } from 'lucide-react';
 import PokerFusionRules from '../components/PokerFusionRules';
 
@@ -21,6 +22,8 @@ export default function Dashboard() {
     setPrivateRoom,
     leavePrivateRoom
   } = useGame();
+  
+  const { showToast } = useToast();
   
   const {
     playMusic, currentSong, isPlaying, muted, toggleMute,
@@ -101,7 +104,7 @@ export default function Dashboard() {
     try {
       await startPrivateMatch(privateRoom.code);
     } catch (err) {
-      alert(err.message || 'Could not start match.');
+      showToast(err.message || 'Could not start match.', 'error');
       setStartingRoom(false);
     }
   };
@@ -171,9 +174,9 @@ export default function Dashboard() {
       data = await res.json();
       
       setTokenBalance(data.tokens);
-      alert("Tokens added successfully!");
+      showToast("Tokens added successfully!", 'success');
     } catch (e) {
-      alert(e.message);
+      showToast(e.message, 'error');
     } finally {
       setProcessingPayment(false);
     }
@@ -233,9 +236,9 @@ export default function Dashboard() {
                 const data = await res.json();
                 if (res.ok) {
                   setTokenBalance(data.tokens);
-                  alert(`✅ Ad reward claimed! +20 tokens. (${data.views_today}/5 today)`);
+                  showToast(`✅ Ad reward claimed! +20 tokens. (${data.views_today}/5 today)`, 'success');
                 } else {
-                  alert(data.detail || 'Could not claim reward.');
+                  showToast(data.detail || 'Could not claim reward.', 'error');
                 }
               } catch (e) {
                 console.error(e);
