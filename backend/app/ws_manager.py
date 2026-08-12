@@ -226,6 +226,8 @@ class ConnectionManager:
                 session.catch_player(user_id, target_id)
 
             elif action == "quit_game":
+                was_already_over = session.game_over
+
                 # Mark the quitting player inactive
                 for p in session.players:
                     if p["id"] == user_id:
@@ -236,11 +238,12 @@ class ConnectionManager:
                 if user_id in self.user_to_game:
                     del self.user_to_game[user_id]
 
-                # End the game immediately — a player ran away!
-                session.game_over = True
-                session.winner_id = None
-                session.system_messages.append(f"🏃 {user_phone} ran away from the game!")
-                session.system_messages.append("__PLAYER_RAN_AWAY__")  # sentinel for frontend popup
+                if not was_already_over:
+                    # End the game immediately — a player ran away!
+                    session.game_over = True
+                    session.winner_id = None
+                    session.system_messages.append(f"🏃 {user_phone} ran away from the game!")
+                    session.system_messages.append("__PLAYER_RAN_AWAY__")  # sentinel for frontend popup
 
                 # Save the final state
                 await redis.set(f"{GAME_PREFIX}{game_id}", json.dumps(session.to_json()))
@@ -251,6 +254,21 @@ class ConnectionManager:
                         await self.active_connections[user_id].send_json({"type": "quit_ack"})
                     except Exception:
                         pass
+
+                # Only finalize in Postgres + run achievement/suspicious checks the FIRST time
+                # this game transitions to game_over here — otherwise a post-win "Return to
+                # Dashboard" quit_game would wipe the already-recorded winner_id.
+                if not was_already_over:
+                    stmt = select(Match).filter(Match.game_id == game_id)
+                    res = await db.execute(stmt)
+                    db_match = res.scalars().first()
+                    if db_match:
+                        db_match.winner_id = session.winner_id
+                        db_match.ended_at = datetime.utcnow()
+                        await db.commit()
+
+                    await self._check_achievements(session, db)
+                    await self._flag_suspicious_pairs(session, db)
 
                 # Broadcast final state to remaining players
                 await self.publish_game_update(game_id)
@@ -377,6 +395,9 @@ class ConnectionManager:
                                         from datetime import datetime
                                         db_match.ended_at = datetime.utcnow()
                                         await db.commit()
+
+                                    await self._check_achievements(session, db)
+                                    await self._flag_suspicious_pairs(session, db)
                                     break
                             
                             await self.publish_game_update(game_id)
