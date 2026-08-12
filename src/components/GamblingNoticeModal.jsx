@@ -1,25 +1,25 @@
 import React, { useState } from 'react';
 import { AlertOctagon, CheckSquare, Square } from 'lucide-react';
+import { apiFetch } from '../config/api';
 
 export default function GamblingNoticeModal({ onAgree }) {
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const handleAgree = async () => {
     if (!agreed) return;
     setSubmitting(true);
+    setError('');
     try {
-      const res = await fetch('/api/profile/agree_terms', {
+      await apiFetch('/api/profile/agree_terms', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
-      if (res.ok) {
-        onAgree();
-      } else {
-        throw new Error("Failed to record agreement.");
-      }
+      onAgree();
     } catch (e) {
-      alert(e.message);
+      // apiFetch gives a real reason now (network issue, wrong host, 401, etc.)
+      setError(e.message || 'Failed to record agreement.');
       setSubmitting(false);
     }
   };
@@ -48,6 +48,21 @@ export default function GamblingNoticeModal({ onAgree }) {
             Any player found arranging real-money bets through the chat system or otherwise violating these terms will face an <strong>immediate permanent ban</strong>.
           </p>
         </div>
+
+        {error && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: 'var(--accent-red)',
+            padding: '12px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            textAlign: 'center',
+            marginBottom: '20px'
+          }}>
+            {error}
+          </div>
+        )}
 
         <div 
           onClick={() => setAgreed(!agreed)}
