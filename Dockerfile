@@ -1,23 +1,39 @@
+# Frontend build stage
+FROM node:22-alpine AS frontend-builder
+
+WORKDIR /frontend
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+
+# Backend runtime stage
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# System dependencies (needed for psycopg2/postgres driver)
-RUN apt-get update && apt-get install -y \
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8000
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies first (layer caching)
-COPY requirements.txt .
+COPY backend/requirements.txt ./requirements.txt
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the backend code
-COPY . .
+COPY backend/ ./backend/
 
-# Fly.io will set the PORT env variable; default to 8000 for local testing
-ENV PORT=8000
+COPY --from=frontend-builder /frontend/dist ./frontend_dist/
+
+RUN mkdir -p /app/uploads
+
 EXPOSE 8000
 
-# Run the FastAPI app with uvicorn
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT}"]
