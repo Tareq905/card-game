@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send } from 'lucide-react';
+import { API_URL } from '../config/api';
 
 export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,7 +29,7 @@ export default function Chatbot() {
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/chat?message=${encodeURIComponent(userMsg)}`, {
+      const res = await fetch(`${API_URL}/api/chat?message=${encodeURIComponent(userMsg)}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -81,7 +82,6 @@ export default function Chatbot() {
           boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
           overflow: 'hidden'
         }}>
-          {/* Header */}
           <div style={{
             padding: '15px 20px',
             background: 'rgba(59, 130, 246, 0.2)',
@@ -98,7 +98,6 @@ export default function Chatbot() {
             </button>
           </div>
 
-          {/* Messages */}
           <div style={{
             flex: 1,
             overflowY: 'auto',
@@ -130,7 +129,6 @@ export default function Chatbot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <form onSubmit={handleSend} style={{
             padding: '15px',
             borderTop: '1px solid rgba(255,255,255,0.1)',

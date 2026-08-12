@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { API_URL, getWsUrl } from '../config/api';
 
 const GameContext = createContext(null);
 
@@ -56,8 +57,7 @@ export const GameProvider = ({ children }) => {
       return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/game?token=${encodeURIComponent(token)}`;
+    const wsUrl = getWsUrl(`/ws/game?token=${encodeURIComponent(token)}`);
     
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
@@ -177,7 +177,7 @@ export const GameProvider = ({ children }) => {
   const joinQueue = async (mode = 'classic') => {
     playSound('click');
     try {
-      const res = await fetch(`/api/matchmaking/join?mode=${encodeURIComponent(mode)}`, {
+      const res = await fetch(`${API_URL}/api/matchmaking/join?mode=${encodeURIComponent(mode)}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -193,7 +193,7 @@ export const GameProvider = ({ children }) => {
   const leaveQueue = async () => {
     playSound('click');
     try {
-      const res = await fetch('/api/matchmaking/leave', {
+      const res = await fetch(`${API_URL}/api/matchmaking/leave`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -209,7 +209,7 @@ export const GameProvider = ({ children }) => {
     // Basic polling utility to keep queue sizes synced in UI
     if (matchmakingStatus !== 'searching') return;
     try {
-      const res = await fetch('/api/matchmaking/status');
+      const res = await fetch(`${API_URL}/api/matchmaking/status`);
       if (res.ok) {
         const data = await res.json();
         setQueueSize(data.queue_size);
@@ -237,7 +237,7 @@ export const GameProvider = ({ children }) => {
   const createPrivateRoom = async () => {
     playSound('click');
     try {
-      const res = await fetch('/api/game/private-room', {
+      const res = await fetch(`${API_URL}/api/game/private-room`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -254,7 +254,7 @@ export const GameProvider = ({ children }) => {
   const joinPrivateRoom = async (code) => {
     playSound('click');
     try {
-      const res = await fetch(`/api/game/private-room/join?code=${encodeURIComponent(code)}`, {
+      const res = await fetch(`${API_URL}/api/game/private-room/join?code=${encodeURIComponent(code)}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -274,7 +274,7 @@ export const GameProvider = ({ children }) => {
   const startPrivateMatch = async (code) => {
     playSound('click');
     try {
-      const res = await fetch(`/api/game/private-room/${code}/start`, {
+      const res = await fetch(`${API_URL}/api/game/private-room/${code}/start`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -297,7 +297,7 @@ export const GameProvider = ({ children }) => {
     // Tell the backend to remove us from the room Redis state
     if (privateRoom?.code) {
       try {
-        await fetch(`/api/game/private-room/${privateRoom.code}/leave`, {
+        await fetch(`${API_URL}/api/game/private-room/${privateRoom.code}/leave`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
         });

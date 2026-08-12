@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import { apiFetch } from '../config/api';
 
 const AuthContext = createContext(null);
 
@@ -6,6 +7,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
     if (token) {
@@ -19,38 +21,35 @@ export const AuthProvider = ({ children }) => {
     const currentToken = localStorage.getItem('token') || token;
     if (!currentToken) return;
     try {
-      const response = await fetch('/api/profile', {
-        headers: {
-          'Authorization': `Bearer ${currentToken}`
-        }
+      const data = await apiFetch('/api/profile', {
+        headers: { Authorization: `Bearer ${currentToken}` }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data);
-      } else {
-        // Token expired/invalid
-        logout();
-      }
+      setUser(data);
+      setAuthError(null);
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      // Distinguish "token invalid" (safe to log out) from
+      // "server/network issue" (don't wipe the session over a hiccup).
+      console.error('Error fetching profile:', error.message);
+      if (error.status === 401 || error.status === 403) {
+        logout();
+      } else {
+        setAuthError(error.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const googleLogin = async (credential) => {
-    const response = await fetch(`/api/auth/google?credential=${credential}`, {
-      method: 'POST'
-    });
-    
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || 'Google login failed');
-    }
-    
+    const data = await apiFetch(
+      `/api/auth/google?credential=${encodeURIComponent(credential)}`,
+      { method: 'POST' }
+    );
+    // apiFetch already throws with data.detail on !res.ok, so if we're here it succeeded
     localStorage.setItem('token', data.access_token);
     setToken(data.access_token);
     setUser(data.user);
+    setAuthError(null);
     return data.user;
   };
 
@@ -67,7 +66,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, googleLogin, logout, refreshProfile, fetchProfile }}>
+    <AuthContext.Provider
+      value={{ user, token, loading, authError, googleLogin, logout, refreshProfile, fetchProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Medal, Star, ArrowLeft, User, Target, Zap, Shield, Crown } from 'lucide-react';
+import { API_URL } from '../config/api';
 
 const ACHIEVEMENTS_META = {
   first_win:       { label: 'First Win',         icon: '🏆', desc: 'Win your first match' },
@@ -32,9 +33,9 @@ export default function Profile() {
     try {
       if (activeTab === 'profile') {
         const [pRes, hRes, aRes] = await Promise.all([
-          fetch('/api/profile', { headers }),
-          fetch('/api/profile/history', { headers }),
-          fetch('/api/profile/achievements', { headers }),
+          fetch(`${API_URL}/api/profile`, { headers }),
+          fetch(`${API_URL}/api/profile/history`, { headers }),
+          fetch(`${API_URL}/api/profile/achievements`, { headers }),
         ]);
         if (pRes.ok && hRes.ok) {
           const pData = await pRes.json();
@@ -43,7 +44,7 @@ export default function Profile() {
         }
         if (aRes.ok) setAchievements(await aRes.json());
       } else {
-        const res = await fetch('/api/leaderboard', { headers });
+        const res = await fetch(`${API_URL}/api/leaderboard`, { headers });
         if (res.ok) {
           const data = await res.json();
           setLeaderboard(data.leaderboard || []);
@@ -92,10 +93,8 @@ export default function Profile() {
           </div>
         ) : (
           <>
-            {/* ─── PROFILE TAB ─── */}
             {activeTab === 'profile' && profile && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                {/* User Card */}
                 <div className="glass-panel" style={{ padding: '30px', gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '25px' }}>
                   {profile.profile_picture_url ? (
                     <img src={profile.profile_picture_url} alt="avatar" style={{ width: '80px', height: '80px', borderRadius: '50%', border: '3px solid var(--accent-blue)' }} />
@@ -111,7 +110,6 @@ export default function Profile() {
                   </div>
                 </div>
 
-                {/* Stats Cards */}
                 {[
                   { label: 'Total Wins', value: profile.stats?.wins ?? 0, icon: <Trophy size={24} color="var(--accent-yellow)" />, color: 'var(--accent-yellow)' },
                   { label: 'Total Losses', value: profile.stats?.losses ?? 0, icon: <Target size={24} color="var(--accent-red)" />, color: 'var(--accent-red)' },
@@ -127,7 +125,6 @@ export default function Profile() {
                   </div>
                 ))}
 
-                {/* Achievements */}
                 <div className="glass-panel" style={{ padding: '30px', gridColumn: '1 / -1' }}>
                   <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <Medal color="var(--accent-yellow)" size={20} /> Achievements
@@ -152,7 +149,6 @@ export default function Profile() {
                   </div>
                 </div>
 
-                {/* Recent History */}
                 {profile.history?.length > 0 && (
                   <div className="glass-panel" style={{ padding: '30px', gridColumn: '1 / -1' }}>
                     <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px' }}>Recent Matches</h3>
@@ -181,7 +177,6 @@ export default function Profile() {
               </div>
             )}
 
-            {/* ─── LEADERBOARD TAB ─── */}
             {activeTab === 'leaderboard' && (
               <div className="glass-panel" style={{ padding: '30px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

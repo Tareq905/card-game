@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, Mail, ArrowRight } from 'lucide-react';
+import { apiFetch } from '../config/api';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -15,7 +16,7 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/admin-login', {
+      const data = await apiFetch('/api/auth/admin-login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -23,17 +24,12 @@ export default function AdminLogin() {
         body: JSON.stringify({ email, password })
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
-        localStorage.setItem('token', data.access_token);
-        // This will update the user context and trigger redirect in App.jsx
-        await fetchProfile();
-      } else {
-        setError(data.detail || 'Login failed');
-      }
+      localStorage.setItem('token', data.access_token);
+      await fetchProfile();
     } catch (err) {
-      setError('Network error. Please try again.');
+      // apiFetch gives a clear message whether it's a bad login,
+      // a network problem, or the backend returning a non-JSON error page.
+      setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }

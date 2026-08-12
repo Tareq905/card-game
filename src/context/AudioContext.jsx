@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { API_URL } from '../config/api';
 
 const AudioContext = createContext(null);
 
@@ -27,7 +28,7 @@ export const AudioProvider = ({ children }) => {
 
   // Fetch theme songs from backend
   const loadThemeSongs = () => {
-    fetch('/api/theme-songs')
+    fetch(`${API_URL}/api/theme-songs`)
       .then(res => res.json())
       .then(data => {
         if (data && data.length > 0) {
@@ -94,11 +95,14 @@ export const AudioProvider = ({ children }) => {
     const song = themeSongs[Math.floor(Math.random() * themeSongs.length)];
     setCurrentSong(song);
 
+    // Theme song files are served from the backend (uploaded), 
+    // default fallback is served from the frontend's own /assets
+    const isBackendFile = song.id !== 0;
     const url = song.file_path.startsWith('/') ? song.file_path : `/${song.file_path}`;
-    // Set src and play — the browser streams it without triggering download managers
-    const fullUrl = window.location.origin + url;
+    const fullUrl = isBackendFile ? `${API_URL}${url}` : url;
+
     if (audio.src !== fullUrl) {
-      audio.src = url;
+      audio.src = fullUrl;
     }
 
     applyVolume();
