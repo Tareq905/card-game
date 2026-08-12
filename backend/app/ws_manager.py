@@ -72,6 +72,17 @@ class ConnectionManager:
         for uid in dead:
             self.active_connections.pop(uid, None)
 
+    async def notify_match_finished(self, session: GameSession):
+        """Tell every connected human player in this session that match/profile
+        stats have changed, so their frontend refetches (Profile page, wallet, etc.)."""
+        for p in session.players:
+            if p.get("is_bot"):
+                continue
+            pid = p["id"]
+            if pid < 0:
+                continue
+            await self.notify_user(pid, "global_update")
+
     async def register_player_to_game(self, user_id: int, game_id: str):
         self.user_to_game[user_id] = game_id
         # Start listening to pubsub if not already doing so
@@ -269,6 +280,7 @@ class ConnectionManager:
 
                     await self._check_achievements(session, db)
                     await self._flag_suspicious_pairs(session, db)
+                    await self.notify_match_finished(session)
 
                 # Broadcast final state to remaining players
                 await self.publish_game_update(game_id)
@@ -303,6 +315,9 @@ class ConnectionManager:
 
                 # Suspicious pattern check
                 await self._flag_suspicious_pairs(session, db)
+
+                # Let connected players know their stats changed (e.g. Profile page)
+                await self.notify_match_finished(session)
 
             # Publish state update
             await self.publish_game_update(game_id)
@@ -398,6 +413,7 @@ class ConnectionManager:
 
                                     await self._check_achievements(session, db)
                                     await self._flag_suspicious_pairs(session, db)
+                                    await self.notify_match_finished(session)
                                     break
                             
                             await self.publish_game_update(game_id)
