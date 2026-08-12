@@ -810,28 +810,58 @@ async def execute_bkash_payment(paymentID: str, current_user: User = Depends(get
 # ADS
 # ============================================================
 
+AD_SESSION_PREFIX = "ad_session:"
+AD_SESSION_TTL = 120        # token expires in 2 minutes if unused
+MIN_AD_WATCH_SECONDS = 25   # must have elapsed since /ads/start before claiming
+
+@app.post("/api/ads/start")
+async def start_ad_session(current_user: User = Depends(get_current_user)):
+    """Call this right before opening the ad link. Issues a one-time
+    server-timestamped token that /api/ads/reward requires."""
+    today = datetime.now(timezone.utc).date()
+    views_today = current_user.ad_views_today if current_user.ad_views_date == today else 0
+    if views_today >= 5:
+        raise HTTPException(status_code=400, detail="Daily ad limit reached (5/day).")
+
+    redis = get_redis_client()
+    token = uuid.uuid4().hex
+    await redis.set(f"{AD_SESSION_PREFIX}{token}", json.dumps({
+        "user_id": current_user.id,
+        "started_at": time.time()
+    }), ex=AD_SESSION_TTL)
+    return {"token": token}
+
 @app.post("/api/ads/reward")
 async def ad_reward(
-    self_reported: bool = False,
+    token: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    redis = get_redis_client()
+    session_raw = await redis.get(f"{AD_SESSION_PREFIX}{token}")
+    if not session_raw:
+        raise HTTPException(status_code=400, detail="Ad session not found or expired. Please watch the ad again.")
+
+    session_data = json.loads(session_raw)
+    if session_data["user_id"] != current_user.id:
+        raise HTTPException(status_code=403, detail="Ad session does not belong to this user.")
+
+    # One-time use — consume immediately so it can't be replayed
+    await redis.delete(f"{AD_SESSION_PREFIX}{token}")
+
+    elapsed = time.time() - session_data["started_at"]
+    if elapsed < MIN_AD_WATCH_SECONDS:
+        raise HTTPException(status_code=400, detail="Ad was not watched long enough.")
+
     today = datetime.now(timezone.utc).date()
     if current_user.ad_views_date != today:
         current_user.ad_views_date = today
         current_user.ad_views_today = 0
     if current_user.ad_views_today >= 5:
         raise HTTPException(status_code=400, detail="Daily ad limit reached (5/day).")
+
     current_user.ad_views_today += 1
     current_user.tokens += 20
-
-    # Log self-reported SmartLink claims separately for audit
-    if self_reported:
-        redis = get_redis_client()
-        log_key = f"ad:self_reported:{today}"
-        await redis.incr(log_key)
-        await redis.expire(log_key, 86400 * 7)  # keep 7 days
-
     await db.commit()
     return {"status": "success", "tokens": current_user.tokens, "views_today": current_user.ad_views_today}
 
