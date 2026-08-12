@@ -27,6 +27,17 @@ export default function Profile() {
     fetchAll();
   }, [activeTab]);
 
+  // Live-refresh: backend fires a 'global_update' event (via GameContext's websocket
+  // handler) whenever one of this user's matches finishes, so stats/achievements
+  // update without needing to leave and revisit the Profile page.
+  useEffect(() => {
+    const handleGlobalUpdate = () => {
+      fetchAll();
+    };
+    window.addEventListener('global_update', handleGlobalUpdate);
+    return () => window.removeEventListener('global_update', handleGlobalUpdate);
+  }, [activeTab]);
+
   const fetchAll = async () => {
     setLoading(true);
     const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
