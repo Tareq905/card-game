@@ -72,17 +72,6 @@ class ConnectionManager:
         for uid in dead:
             self.active_connections.pop(uid, None)
 
-    async def notify_match_finished(self, session: GameSession):
-        """Tell every connected human player in this session that match/profile
-        stats have changed, so their frontend refetches (Profile page, wallet, etc.)."""
-        for p in session.players:
-            if p.get("is_bot"):
-                continue
-            pid = p["id"]
-            if pid < 0:
-                continue
-            await self.notify_user(pid, "global_update")
-
     async def register_player_to_game(self, user_id: int, game_id: str):
         self.user_to_game[user_id] = game_id
         # Start listening to pubsub if not already doing so
@@ -237,8 +226,6 @@ class ConnectionManager:
                 session.catch_player(user_id, target_id)
 
             elif action == "quit_game":
-                was_already_over = session.game_over
-
                 # Mark the quitting player inactive
                 for p in session.players:
                     if p["id"] == user_id:
@@ -249,15 +236,29 @@ class ConnectionManager:
                 if user_id in self.user_to_game:
                     del self.user_to_game[user_id]
 
-                if not was_already_over:
-                    # End the game immediately — a player ran away!
-                    session.game_over = True
-                    session.winner_id = None
-                    session.system_messages.append(f"🏃 {user_phone} ran away from the game!")
-                    session.system_messages.append("__PLAYER_RAN_AWAY__")  # sentinel for frontend popup
+                # End the game immediately — a player ran away!
+                # Remaining active player (if any) is awarded the win as a forfeit.
+                remaining = [p for p in session.players if p["id"] != user_id]
+                session.game_over = True
+                session.status = "ended"
+                session.winner_id = remaining[0]["id"] if remaining else None
+                session.system_messages.append(f"🏃 {user_phone} ran away from the game!")
+                session.system_messages.append("__PLAYER_RAN_AWAY__")  # sentinel for frontend popup
 
                 # Save the final state
                 await redis.set(f"{GAME_PREFIX}{game_id}", json.dumps(session.to_json()))
+
+                # Finalize the match in Postgres so history/leaderboard/achievements stay in sync
+                stmt = select(Match).filter(Match.game_id == game_id)
+                res = await db.execute(stmt)
+                db_match = res.scalars().first()
+                if db_match:
+                    db_match.winner_id = session.winner_id
+                    db_match.ended_at = datetime.utcnow()
+                    await db.commit()
+
+                await self._check_achievements(session, db)
+                await self._flag_suspicious_pairs(session, db)
 
                 # Send confirmation to the quitting player first (they leave immediately)
                 if user_id in self.active_connections:
@@ -265,22 +266,6 @@ class ConnectionManager:
                         await self.active_connections[user_id].send_json({"type": "quit_ack"})
                     except Exception:
                         pass
-
-                # Only finalize in Postgres + run achievement/suspicious checks the FIRST time
-                # this game transitions to game_over here — otherwise a post-win "Return to
-                # Dashboard" quit_game would wipe the already-recorded winner_id.
-                if not was_already_over:
-                    stmt = select(Match).filter(Match.game_id == game_id)
-                    res = await db.execute(stmt)
-                    db_match = res.scalars().first()
-                    if db_match:
-                        db_match.winner_id = session.winner_id
-                        db_match.ended_at = datetime.utcnow()
-                        await db.commit()
-
-                    await self._check_achievements(session, db)
-                    await self._flag_suspicious_pairs(session, db)
-                    await self.notify_match_finished(session)
 
                 # Broadcast final state to remaining players
                 await self.publish_game_update(game_id)
@@ -315,9 +300,6 @@ class ConnectionManager:
 
                 # Suspicious pattern check
                 await self._flag_suspicious_pairs(session, db)
-
-                # Let connected players know their stats changed (e.g. Profile page)
-                await self.notify_match_finished(session)
 
             # Publish state update
             await self.publish_game_update(game_id)
@@ -410,10 +392,6 @@ class ConnectionManager:
                                         from datetime import datetime
                                         db_match.ended_at = datetime.utcnow()
                                         await db.commit()
-
-                                    await self._check_achievements(session, db)
-                                    await self._flag_suspicious_pairs(session, db)
-                                    await self.notify_match_finished(session)
                                     break
                             
                             await self.publish_game_update(game_id)
