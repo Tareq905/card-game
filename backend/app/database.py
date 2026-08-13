@@ -4,7 +4,12 @@ from sqlalchemy import create_engine
 from .config import settings
 
 # Async engine for database operations
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
 
 # Async session maker
 async_session_maker = sessionmaker(
