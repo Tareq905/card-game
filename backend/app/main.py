@@ -237,7 +237,9 @@ async def agree_terms(current_user: User = Depends(get_current_user), db: AsyncS
 @app.get("/api/profile/history")
 async def get_match_history(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     try:
-        stmt = select(Match).order_by(Match.created_at.desc())
+        month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        stmt = select(Match).filter(Match.created_at >= month_start).order_by(Match.created_at.desc())
         res = await db.execute(stmt)
         all_matches = res.scalars().all()
 
@@ -301,20 +303,24 @@ async def get_achievements(current_user: User = Depends(get_current_user), db: A
 
 @app.get("/api/leaderboard")
 async def get_leaderboard(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+    cache_key = f"leaderboard:cache:{month_key}"
+
     redis = get_redis_client()
-    cached = await redis.get("leaderboard:cache")
+    cached = await redis.get(cache_key)
     if cached:
         lb = json.loads(cached)
     else:
         lb = await _build_leaderboard(db)
-        await redis.set("leaderboard:cache", json.dumps(lb), ex=300)
+        await redis.set(cache_key, json.dumps(lb), ex=300)
 
     # Find current user rank
     my_rank = next((i + 1 for i, e in enumerate(lb) if e["user_id"] == current_user.id), None)
     return {"leaderboard": lb[:50], "my_rank": my_rank}
 
 async def _build_leaderboard(db: AsyncSession):
-    stmt = select(Match)
+    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    stmt = select(Match).filter(Match.created_at >= month_start)
     res = await db.execute(stmt)
     all_matches = res.scalars().all()
 
