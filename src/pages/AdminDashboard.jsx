@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Users, AlertTriangle, Music, DollarSign, Shield, X, Check, Trash2, Ban } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config/api';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -32,24 +33,24 @@ export default function AdminDashboard() {
       
       let res;
       if (activeTab === 'users') {
-        res = await fetch('/api/admin/users', { headers });
+        res = await fetch(`${API_URL}/api/admin/users`, { headers });
         if (res.ok) { const users = await res.json(); setData(d => ({ ...d, users })); }
       } else if (activeTab === 'reports') {
-        res = await fetch('/api/admin/reports', { headers });
+        res = await fetch(`${API_URL}/api/admin/reports`, { headers });
         if (res.ok) { const reports = await res.json(); setData(d => ({ ...d, reports })); }
       } else if (activeTab === 'revenue') {
-        res = await fetch('/api/admin/revenue', { headers });
+        res = await fetch(`${API_URL}/api/admin/revenue`, { headers });
         if (res.ok) { const revenue = await res.json(); setData(d => ({ ...d, revenue })); }
       } else if (activeTab === 'music') {
-        const resThemes = await fetch('/api/theme-songs', { headers });
-        const resReqs = await fetch('/api/admin/song-requests', { headers });
+        const resThemes = await fetch(`${API_URL}/api/theme-songs`, { headers });
+        const resReqs = await fetch(`${API_URL}/api/admin/song-requests`, { headers });
         if (resThemes.ok && resReqs.ok) {
           const themeSongs = await resThemes.json();
           const songRequests = await resReqs.json();
           setData(d => ({ ...d, themeSongs, songRequests }));
         }
       } else if (activeTab === 'suspicious') {
-        res = await fetch('/api/admin/suspicious-txns', { headers });
+        res = await fetch(`${API_URL}/api/admin/suspicious-txns`, { headers });
         if (res.ok) { const suspiciousTxns = await res.json(); setData(d => ({ ...d, suspiciousTxns })); }
       }
     } catch (e) {
@@ -63,7 +64,7 @@ export default function AdminDashboard() {
     let days = banDuration === 'custom' ? parseInt(customDays) : banDuration;
     if (!days || days <= 0) return alert("Invalid duration");
     
-    const url = `/api/admin/ban/${banTarget.id}?reason=${encodeURIComponent(banReason)}&days=${days}`;
+    const url = `${API_URL}/api/admin/ban/${banTarget.id}?reason=${encodeURIComponent(banReason)}&days=${days}`;
     try {
       await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
       setShowBanModal(false);
@@ -75,14 +76,14 @@ export default function AdminDashboard() {
 
   const handleUnbanUser = async (userId) => {
     try {
-      await fetch(`/api/admin/unban/${userId}?reason=Admin action`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
+      await fetch(`${API_URL}/api/admin/unban/${userId}?reason=Admin action`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
       fetchData();
     } catch (e) { alert(e.message); }
   };
 
   const handleUpdateReport = async (reportId, status) => {
     try {
-      await fetch(`/api/admin/reports/${reportId}?new_status=${status}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
+      await fetch(`${API_URL}/api/admin/reports/${reportId}?new_status=${status}`, { method: 'PUT', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
       fetchData();
     } catch (e) { alert(e.message); }
   };
@@ -91,7 +92,7 @@ export default function AdminDashboard() {
     e.preventDefault();
     const formData = new FormData(e.target);
     try {
-      const res = await fetch('/api/admin/theme-songs', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: formData });
+      const res = await fetch(`${API_URL}/api/admin/theme-songs`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: formData });
       if (res.ok) { fetchData(); e.target.reset(); }
       else alert((await res.json()).detail);
     } catch (e) { alert(e.message); }
@@ -99,7 +100,7 @@ export default function AdminDashboard() {
 
   const handleDeleteTheme = async (id) => {
     try {
-      await fetch(`/api/admin/theme-songs/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
+      await fetch(`${API_URL}/api/admin/theme-songs/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
       fetchData();
     } catch (e) { alert(e.message); }
   };
