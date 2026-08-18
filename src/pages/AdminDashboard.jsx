@@ -198,7 +198,11 @@ export default function AdminDashboard() {
                         {data.users.map(u => (
                           <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                             <td style={{ padding: '10px' }}>{u.id}</td>
-                            <td style={{ padding: '10px' }}>{u.display_name || u.email}<br/><span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{u.phone}</span></td>
+                            <td style={{ padding: '10px' }}>
+                              <div style={{ fontWeight: 600 }}>{u.display_name || '—'}</div>
+                              <div style={{ fontSize: '12px', color: 'var(--accent-blue)', marginTop: '2px' }}>{u.email}</div>
+                              {u.phone && <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '1px' }}>📞 {u.phone}</div>}
+                            </td>
                             <td style={{ padding: '10px' }}>{u.tokens}</td>
                             <td style={{ padding: '10px' }}>
                               {u.is_admin ? <span style={{ color: 'var(--accent-purple)' }}>Admin</span> : 

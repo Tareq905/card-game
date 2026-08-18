@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { API_URL } from '../config/api';
 
 const AudioContext = createContext(null);
@@ -14,59 +14,156 @@ export const AudioProvider = ({ children }) => {
   const [sfxVolume, setSfxVolume] = useState(() => parseFloat(localStorage.getItem('sfxVolume')) || 0.9);
   const [muted, setMuted] = useState(() => localStorage.getItem('muted') === 'true');
 
-  // Use a plain <audio> element for streaming — no download manager interception
+  // Refs — avoid stale closures inside audio event listeners
   const audioRef = useRef(null);
+  const themeSongsRef = useRef([]);
+  const isPlayingRef = useRef(false);
+  const masterVolumeRef = useRef(masterVolume);
+  const musicVolumeRef = useRef(musicVolume);
+  const mutedRef = useRef(muted);
+  const wasPlayingBeforeHide = useRef(false);
+  const lastPlayedTypeRef = useRef('none');
+  const playTimeoutRef = useRef(null);
+
+  // Keep refs in sync with state
+  useEffect(() => { themeSongsRef.current = themeSongs; }, [themeSongs]);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { masterVolumeRef.current = masterVolume; }, [masterVolume]);
+  useEffect(() => { musicVolumeRef.current = musicVolume; }, [musicVolume]);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
 
   const getEffectiveVolume = (master, music, isMuted) =>
     isMuted ? 0 : Math.min(1, master * music);
 
-  const applyVolume = () => {
+  const applyVolume = useCallback(() => {
     if (audioRef.current) {
-      audioRef.current.volume = getEffectiveVolume(masterVolume, musicVolume, muted);
+      audioRef.current.volume = getEffectiveVolume(
+        masterVolumeRef.current,
+        musicVolumeRef.current,
+        mutedRef.current
+      );
     }
-  };
+  }, []);
 
   // Fetch theme songs from backend
-  const loadThemeSongs = () => {
+  const loadThemeSongs = useCallback(() => {
     fetch(`${API_URL}/api/theme-songs`)
       .then(res => res.json())
       .then(data => {
         if (data && data.length > 0) {
           setThemeSongs(data);
+          themeSongsRef.current = data;
         } else {
-          setThemeSongs([{
+          const fallback = [{
             id: 0,
             title: 'Default Theme',
             file_path: '/assets/sounds/bg-music.mp3',
             is_active: true
-          }]);
+          }];
+          setThemeSongs(fallback);
+          themeSongsRef.current = fallback;
         }
       })
       .catch(console.error);
-  };
+  }, []);
 
   useEffect(() => {
     loadThemeSongs();
-
-    const handleGlobalUpdate = () => {
-      loadThemeSongs();
-    };
-
+    const handleGlobalUpdate = () => loadThemeSongs();
     window.addEventListener('global_update', handleGlobalUpdate);
+    return () => window.removeEventListener('global_update', handleGlobalUpdate);
+  }, [loadThemeSongs]);
+
+  // Core play — reads only refs so it's always fresh inside any callback
+  const playMusicFromRef = useCallback(() => {
+    const songs = themeSongsRef.current;
+    if (!songs || songs.length === 0) return;
+    if (isPlayingRef.current) return;
+
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
+
+    // Primary = default fallback (id === 0), Extra = admin-uploaded (id > 0)
+    const primarySongs = songs.filter(s => s.id === 0);
+    const extraSongs   = songs.filter(s => s.id !== 0);
+
+    let song;
+    if (extraSongs.length === 0) {
+      song = primarySongs[0] || songs[0];
+      lastPlayedTypeRef.current = 'primary';
+    } else if (lastPlayedTypeRef.current !== 'primary') {
+      // Always start with primary
+      song = primarySongs.length > 0 ? primarySongs[0] : songs[0];
+      lastPlayedTypeRef.current = 'primary';
+    } else {
+      // Alternate: play a random extra
+      song = extraSongs[Math.floor(Math.random() * extraSongs.length)];
+      lastPlayedTypeRef.current = 'extra';
+    }
+
+    if (!song) return;
+
+    setCurrentSong(song);
+
+    const isBackendFile = song.id !== 0;
+    const rawPath = song.file_path.startsWith('/') ? song.file_path : `/${song.file_path}`;
+    const fullUrl  = isBackendFile ? `${API_URL}${rawPath}` : rawPath;
+
+    if (audio.src !== fullUrl) {
+      audio.src = fullUrl;
+      audio.load(); // Required after setting src on a used element
+    }
+
+    applyVolume();
+    audio.play().catch(e => {
+      console.log('Music autoplay blocked:', e.message);
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+    });
+  }, [applyVolume]);
+
+  // Create single <audio> element once — all listeners use refs
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = 'none'; // Don't preload — stream on demand
+    audioRef.current = audio;
+
+    audio.addEventListener('play', () => {
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+    });
+    audio.addEventListener('pause', () => {
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+    });
+    audio.addEventListener('ended', () => {
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      // 5-second gap then play next song in playlist
+      if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
+      playTimeoutRef.current = setTimeout(() => {
+        if (!document.hidden) playMusicFromRef();
+      }, 5000);
+    });
+    audio.addEventListener('error', () => {
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+    });
+
     return () => {
-      window.removeEventListener('global_update', handleGlobalUpdate);
+      if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
+      audio.pause();
+      audio.src = '';
     };
-  }, []);
+  }, [playMusicFromRef]);
 
-  const wasPlayingBeforeHide = useRef(false);
-  const lastPlayedTypeRef = useRef('none');
-  const playTimeoutRef = useRef(null);
-
+  // Pause when tab hidden, resume when visible again
   useEffect(() => {
     const handleVisibilityChange = () => {
       const audio = audioRef.current;
       if (!audio) return;
-      
       if (document.hidden) {
         if (!audio.paused) {
           wasPlayingBeforeHide.current = true;
@@ -81,96 +178,30 @@ export const AudioProvider = ({ children }) => {
         }
       }
     };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // Create a single <audio> element once — kept alive in ref
-  useEffect(() => {
-    const audio = new Audio();
-    audio.loop = true;
-    audio.preload = 'none'; // Don't preload — only stream when play() is called
-    audioRef.current = audio;
-
-    audio.addEventListener('play', () => setIsPlaying(true));
-    audio.addEventListener('pause', () => setIsPlaying(false));
-    audio.addEventListener('ended', () => {
-      setIsPlaying(false);
-      if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
-      playTimeoutRef.current = setTimeout(() => {
-        if (!document.hidden) playMusic();
-      }, 5000); // 5-second interval between songs
-    });
-
-    return () => {
-      if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
-      audio.pause();
-      audio.src = '';
-    };
-  }, []);
-
-  // Sync volume whenever settings change
+  // Persist volume settings and apply to audio element
   useEffect(() => {
     localStorage.setItem('masterVolume', masterVolume);
     localStorage.setItem('musicVolume', musicVolume);
     localStorage.setItem('sfxVolume', sfxVolume);
     localStorage.setItem('muted', muted);
     applyVolume();
-  }, [masterVolume, musicVolume, sfxVolume, muted]);
+  }, [masterVolume, musicVolume, sfxVolume, muted, applyVolume]);
 
-  const playMusic = () => {
-    if (themeSongs.length === 0) return;
-    if (isPlaying) return;
-    if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
+  // Public: reset playing state then start
+  const playMusic = useCallback(() => {
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    playMusicFromRef();
+  }, [playMusicFromRef]);
 
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    let song;
-    const primarySongs = themeSongs.filter(s => s.id === 0);
-    const extraSongs = themeSongs.filter(s => s.id !== 0);
-
-    if (extraSongs.length === 0) {
-      song = primarySongs[0] || themeSongs[0];
-      lastPlayedTypeRef.current = 'primary';
-    } else {
-      if (lastPlayedTypeRef.current !== 'primary') {
-        song = primarySongs[0] || themeSongs[0];
-        lastPlayedTypeRef.current = 'primary';
-      } else {
-        song = extraSongs[Math.floor(Math.random() * extraSongs.length)];
-        lastPlayedTypeRef.current = 'extra';
-      }
-    }
-
-    if (!song) return;
-
-    setCurrentSong(song);
-
-    // Theme song files are served from the backend (uploaded), 
-    // default fallback is served from the frontend's own /assets
-    const isBackendFile = song.id !== 0;
-    const url = song.file_path.startsWith('/') ? song.file_path : `/${song.file_path}`;
-    const fullUrl = isBackendFile ? `${API_URL}${url}` : url;
-
-    if (audio.src !== fullUrl) {
-      audio.src = fullUrl;
-    }
-
-    applyVolume();
-    audio.play().catch(e => {
-      // Autoplay blocked by browser policy — fine, user gesture will trigger it
-      console.log('Music autoplay blocked:', e.message);
-      setIsPlaying(false);
-    });
-  };
-
-  const stopMusic = () => {
+  const stopMusic = useCallback(() => {
     if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
     const audio = audioRef.current;
     if (!audio) return;
-    // Short fade-out
     const fadeDuration = 1000;
     const steps = 20;
     const startVol = audio.volume;
@@ -183,20 +214,25 @@ export const AudioProvider = ({ children }) => {
         audio.pause();
         audio.currentTime = 0;
         setCurrentSong(null);
-        applyVolume(); // Restore volume for next play
+        applyVolume(); // Restore volume for next play session
       }
     }, fadeDuration / steps);
-  };
+  }, [applyVolume]);
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     setMuted(prev => {
       const next = !prev;
+      mutedRef.current = next;
       if (audioRef.current) {
-        audioRef.current.volume = getEffectiveVolume(masterVolume, musicVolume, next);
+        audioRef.current.volume = getEffectiveVolume(
+          masterVolumeRef.current,
+          musicVolumeRef.current,
+          next
+        );
       }
       return next;
     });
-  };
+  }, []);
 
   return (
     <AudioContext.Provider value={{
