@@ -1,0 +1,556 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap');
+
+:root {
+  --bg-dark: #0a0e17;
+  --bg-panel: rgba(20, 26, 42, 0.7);
+  --bg-panel-border: rgba(255, 255, 255, 0.08);
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-red: #ef4444;
+  --accent-green: #10b981;
+  --accent-yellow: #f59e0b;
+  --game-accent: #10b981; /* Shuffled per match */
+  --font-main: 'Outfit', sans-serif;
+  --font-mono: 'Space Grotesk', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-main);
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Glassmorphic Panel Utility */
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--bg-panel-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(var(--accent-rgb), 0.2);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.6);
+  }
+}
+
+@keyframes card-deal {
+  from {
+    transform: translate(-50%, -150%) rotate(0deg) scale(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: translate(0, 0) rotate(var(--rot)) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes turn-glow {
+  0%, 100% {
+    box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.1), 0 0 20px rgba(var(--accent-rgb), 0.3);
+  }
+  50% {
+    box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.2), 0 0 40px rgba(var(--accent-rgb), 0.7);
+  }
+}
+
+/* Custom interactive buttons */
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+  filter: brightness(1.1);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #f43f5e, #e11d48);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
+}
+
+/* Card fans and tables style layout */
+.game-table-container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background-image: radial-gradient(circle at center, rgba(16, 185, 129, 0.15) 0%, rgba(10, 14, 23, 1) 75%), url('/assets/cards/back/table-bg.png');
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+}
+
+/* Table glow effect shifted dynamically */
+.table-glow-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, var(--game-accent) 0%, transparent 60%);
+  opacity: 0.15;
+  pointer-events: none;
+  transition: background 1.5s ease;
+  z-index: 1;
+}
+
+.card-hand-fan {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  position: relative;
+  height: 160px;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.card-item {
+  width: 90px;
+  height: 135px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: absolute;
+  bottom: 10px;
+  transform-origin: bottom center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-item:hover {
+  z-index: 100 !important;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.4), 0 0 15px rgba(255,255,255,0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.card-item.selected {
+  z-index: 101 !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 0 30px rgba(255,255,255,0.6), 0 0 15px rgba(255,255,255,0.3) !important;
+}
+
+.card-item.dragging {
+  opacity: 0.45;
+  filter: drop-shadow(0 0 12px rgba(16,185,129,0.8));
+  cursor: grabbing;
+}
+
+/* Discard & Draw piles */
+.play-area {
+  display: flex;
+  gap: 30px;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+.deck-pile, .discard-pile-ui {
+  width: 95px;
+  height: 142px;
+  border-radius: 8px;
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deck-pile {
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.deck-pile:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.deck-card-face {
+  width: 90px;
+  height: 135px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  background-size: cover;
+  background-position: center;
+  transition: transform 0.2s ease;
+}
+
+.deck-pile:hover .deck-card-face {
+  transform: translateY(-5px);
+}
+
+.discard-top-card {
+  width: 90px;
+  height: 135px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Chat overlay and layout styling */
+.chat-drawer {
+  position: absolute;
+  right: 20px;
+  top: 80px;
+  bottom: 200px;
+  width: 320px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Floating Action Button for Chat on Mobile */
+.chat-fab {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  color: white;
+  border: none;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.chat-fab:active {
+  transform: scale(0.9);
+}
+
+@media (max-width: 768px) {
+  .game-table-container {
+    padding: 10px;
+    touch-action: none;
+  }
+  
+  /* Show FAB and convert Chat to Bottom Sheet */
+  .chat-fab {
+    display: flex;
+  }
+  
+  .chat-drawer {
+    position: fixed;
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 60vh !important;
+    border-radius: 20px 20px 0 0;
+    z-index: 1001;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .chat-drawer.open {
+    transform: translateY(0);
+  }
+  
+  /* Opponent Layout */
+  .opponents-container {
+    top: 70px !important;
+    flex-wrap: wrap !important;
+    gap: 10px;
+    justify-content: center !important;
+  }
+  
+  .opponent-panel {
+    min-width: 110px !important;
+    padding: 8px 12px !important;
+  }
+  
+  .opponent-panel span {
+    font-size: 11px !important;
+  }
+  
+  /* Scaled down cards */
+  .card-item {
+    width: 60px;
+    height: 90px;
+    bottom: 5px;
+  }
+  
+  .card-hand-fan {
+    height: 120px;
+  }
+  
+  /* Scaled Play Area */
+  .deck-pile, .discard-pile-ui {
+    width: 65px;
+    height: 95px;
+  }
+  
+  .deck-card-face, .discard-top-card {
+    width: 60px;
+    height: 90px;
+  }
+  
+  .play-area {
+    gap: 15px;
+  }
+  
+  /* Action buttons */
+  .action-buttons-container {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .action-buttons-container button {
+    padding: 8px 14px !important;
+    font-size: 11px !important;
+  }
+  
+  /* HUD adjustments */
+  .hud-header {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px;
+  }
+  
+  .hud-header > div {
+    justify-content: space-between;
+  }
+}
+
+/* ── Loading Screen ───────────────────────── */
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  background: var(--bg-dark);
+  color: var(--text-secondary);
+  font-family: var(--font-main);
+  font-size: 1.1rem;
+  letter-spacing: 0.05em;
+}
+
+.loading-spinner {
+  width: 52px;
+  height: 52px;
+  border: 4px solid rgba(139, 92, 246, 0.2);
+  border-top-color: var(--accent-purple);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes thinking-dot {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+@keyframes pulse-badge {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 10px rgba(239,68,68,0.5); }
+  50% { transform: scale(1.2); box-shadow: 0 0 18px rgba(239,68,68,0.9); }
+}
+
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── Toast Notifications ───────────────────── */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 90%;
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: toastFadeIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toast:hover {
+  transform: scale(1.02);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.toast-info {
+  background: rgba(59, 130, 246, 0.85); /* Blue */
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.toast-success {
+  background: rgba(16, 185, 129, 0.85); /* Green */
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.toast-error {
+  background: rgba(239, 68, 68, 0.9); /* Red */
+  border-color: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2), 0 10px 25px rgba(0,0,0,0.4);
+}
+
+.toast-message {
+  flex: 1;
+  margin-right: 15px;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.toast-close:hover {
+  color: #fff;
+}
+
+@keyframes toastFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

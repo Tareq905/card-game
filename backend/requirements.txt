@@ -1,0 +1,28 @@
+# One Left — Backend Dependencies
+# Install with: pip install -r backend/requirements.txt
+
+# Web framework
+fastapi
+uvicorn[standard]
+
+# Database
+sqlalchemy
+asyncpg
+psycopg2-binary
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Redis (using in-memory fakeredis — no Redis server needed)
+redis
+fakeredis
+
+# File uploads / multipart form data
+python-multipart
+
+# HTTP client
+httpx
+
+# AI Chatbot
+groq
