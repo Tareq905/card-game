@@ -1176,3 +1176,6 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(os.path.join(UPLOAD_DIR, "avatars"), exist_ok=True)
 os.makedirs(os.path.join(UPLOAD_DIR, "music"), exist_ok=True)
+
+app.mount("/static/uploads", StaticFiles(directory="uploads"), name="uploads_static")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
