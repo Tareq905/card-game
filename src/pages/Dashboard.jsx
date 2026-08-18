@@ -223,12 +223,25 @@ export default function Dashboard() {
 
     // Open Adsterra direct link in a new tab
     const ADSTERRA_LINK = 'https://www.effectivecpmnetwork.com/efg5sxzhuz?key=5c582272c64ee9504631bcd19055c01e';
-    window.open(ADSTERRA_LINK, '_blank', 'noopener,noreferrer');
+    const adWindow = window.open(ADSTERRA_LINK, '_blank', 'noopener,noreferrer');
+    
+    if (!adWindow) {
+      showToast('⚠️ Popup blocked! Please allow popups to watch ads.', 'error');
+      return;
+    }
 
     // Countdown 30 seconds, then wait for focus to reward the user
     let count = 30;
     setAdCountdown(count);
     const timer = setInterval(() => {
+      // If the user closed the ad tab/window before the timer finishes
+      if (adWindow.closed) {
+        clearInterval(timer);
+        setAdCountdown(null);
+        showToast('❌ Ad closed early. You must watch the ad for the full 30 seconds.', 'error');
+        return;
+      }
+      
       count -= 1;
       if (count > 0) {
         setAdCountdown(count);

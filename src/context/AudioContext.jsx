@@ -24,6 +24,7 @@ export const AudioProvider = ({ children }) => {
   const wasPlayingBeforeHide = useRef(false);
   const lastPlayedTypeRef = useRef('none');
   const playTimeoutRef = useRef(null);
+  const isInGameRef = useRef(false);
 
   // Keep refs in sync with state
   useEffect(() => { themeSongsRef.current = themeSongs; }, [themeSongs]);
@@ -76,6 +77,7 @@ export const AudioProvider = ({ children }) => {
 
   // Core play — reads only refs so it's always fresh inside any callback
   const playMusicFromRef = useCallback(() => {
+    if (isInGameRef.current) return;
     const songs = themeSongsRef.current;
     if (!songs || songs.length === 0) return;
     if (isPlayingRef.current) return;
@@ -234,6 +236,13 @@ export const AudioProvider = ({ children }) => {
     });
   }, []);
 
+  const setIsInGame = useCallback((val) => {
+    isInGameRef.current = val;
+    if (val) {
+      stopMusic();
+    }
+  }, [stopMusic]);
+
   return (
     <AudioContext.Provider value={{
       masterVolume, setMasterVolume,
@@ -241,6 +250,7 @@ export const AudioProvider = ({ children }) => {
       sfxVolume, setSfxVolume,
       muted, setMuted, toggleMute,
       playMusic, stopMusic, currentSong, isPlaying,
+      setIsInGame,
     }}>
       {children}
     </AudioContext.Provider>

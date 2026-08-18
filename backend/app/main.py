@@ -981,7 +981,7 @@ async def ad_reward(
         raise HTTPException(status_code=400, detail="Invalid or expired ad token. Please watch the ad again.")
         
     start_time = float(start_time_str)
-    if datetime.now(timezone.utc).timestamp() - start_time < 25:
+    if datetime.now(timezone.utc).timestamp() - start_time < 30:
         raise HTTPException(status_code=400, detail="Ad watched too fast. Please watch the full ad.")
         
     # Delete token so it can't be reused

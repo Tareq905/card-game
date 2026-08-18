@@ -7,7 +7,7 @@ import { Send, LogOut, MessageCircle, Volume2, VolumeX, ShieldAlert, Check, Shie
 export default function GameRoom() {
   const { user } = useAuth();
   const { gameState, chatMessages, sendAction, quitGame, playSound } = useGame();
-  const { stopMusic } = useAudio();
+  const { stopMusic, setIsInGame } = useAudio();
   const [selectedCardId, setSelectedCardId] = useState(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pendingWildCardId, setPendingWildCardId] = useState(null);
@@ -28,11 +28,14 @@ export default function GameRoom() {
   const dragOffset = useRef({ x: 0, y: 0 });
   const [draggedCardId, setDraggedCardId] = useState(null);
   const [dropHighlight, setDropHighlight] = useState(false);
-
+ 
   // Stop background music during gameplay
   useEffect(() => {
-    stopMusic();
-  }, []);
+    setIsInGame(true);
+    return () => {
+      setIsInGame(false);
+    };
+  }, [setIsInGame]);
 
   // Draggable chat panel
   const onChatPointerDown = useCallback((e) => {
