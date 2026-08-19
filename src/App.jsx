@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { useGame } from './context/GameContext'
@@ -14,6 +15,9 @@ import GamblingNoticeModal from './components/GamblingNoticeModal'
 function AppRoutes() {
   const { user, loading, fetchProfile } = useAuth()
   const { gameState } = useGame()
+  const [showNotice, setShowNotice] = useState(() => {
+    return localStorage.getItem('dismissed_gambling_notice') !== 'true';
+  });
 
   if (loading) {
     return (
@@ -48,23 +52,52 @@ function AppRoutes() {
         <GamblingNoticeModal onAgree={fetchProfile} />
       )}
       
-      {/* Global Gambling Notice Footer */}
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        width: '100%',
-        background: 'rgba(0,0,0,0.8)',
-        color: 'rgba(255,255,255,0.6)',
-        fontSize: '11px',
-        textAlign: 'center',
-        padding: '8px',
-        zIndex: 9999,
-        borderTop: '1px solid rgba(255,255,255,0.1)'
-      }}>
-        <strong>Notice:</strong> One Left is for entertainment purposes only and does not support real-money gambling or peer-to-peer transfers. 
-        <a href="/terms" style={{ color: 'var(--accent-blue)', marginLeft: '10px', textDecoration: 'none' }}>Terms & Conditions</a>
-      </div>
+      {/* Global Gambling Notice Footer — hide during active gameplay to avoid covering controls */}
+      {showNotice && !gameState && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          width: '100%',
+          background: 'rgba(0,0,0,0.85)',
+          color: 'rgba(255,255,255,0.6)',
+          fontSize: '11px',
+          textAlign: 'center',
+          padding: '8px 45px 8px 15px', // extra right padding to prevent overlapping with close button
+          zIndex: 9999,
+          borderTop: '1px solid rgba(255,255,255,0.1)',
+          backdropFilter: 'blur(4px)',
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.3)',
+        }}>
+          <strong>Notice:</strong> One Left is for entertainment purposes only and does not support real-money gambling or peer-to-peer transfers. 
+          <a href="/terms" style={{ color: 'var(--accent-blue)', marginLeft: '10px', textDecoration: 'none' }}>Terms & Conditions</a>
+          <button
+            onClick={() => {
+              localStorage.setItem('dismissed_gambling_notice', 'true');
+              setShowNotice(false);
+            }}
+            style={{
+              position: 'absolute',
+              right: '15px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontSize: '15px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              padding: '2px 6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            title="Dismiss Notice"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </>
   )
 }

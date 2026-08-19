@@ -275,7 +275,8 @@ class ConnectionManager:
                     res = await db.execute(stmt)
                     db_match = res.scalars().first()
                     if db_match:
-                        db_match.winner_id = session.winner_id
+                        # Only set winner_id if it's a real user (id > 0) to avoid foreign key errors for bots
+                        db_match.winner_id = session.winner_id if session.winner_id and session.winner_id > 0 else None
                         db_match.ended_at = datetime.utcnow()
                         await db.commit()
 
@@ -301,13 +302,13 @@ class ConnectionManager:
             await redis.set(f"{GAME_PREFIX}{game_id}", json.dumps(session.to_json()))
 
 
-            # Check if match ended and save to Postgres
             if session.game_over:
                 stmt = select(Match).filter(Match.game_id == game_id)
                 res = await db.execute(stmt)
                 db_match = res.scalars().first()
                 if db_match:
-                    db_match.winner_id = session.winner_id
+                    # Only set winner_id if it's a real user (id > 0) to avoid foreign key errors for bots
+                    db_match.winner_id = session.winner_id if session.winner_id and session.winner_id > 0 else None
                     db_match.ended_at = datetime.utcnow()
                     await db.commit()
 
@@ -416,7 +417,8 @@ class ConnectionManager:
                                     res = await db.execute(stmt)
                                     db_match = res.scalars().first()
                                     if db_match:
-                                        db_match.winner_id = session.winner_id
+                                        # Only set winner_id if it's a real user (id > 0) to avoid foreign key errors for bots
+                                        db_match.winner_id = session.winner_id if session.winner_id and session.winner_id > 0 else None
                                         from datetime import datetime
                                         db_match.ended_at = datetime.utcnow()
                                         await db.commit()
