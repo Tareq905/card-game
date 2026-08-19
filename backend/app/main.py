@@ -260,10 +260,9 @@ async def get_match_history(current_user: User = Depends(get_current_user), db: 
                     players = []
                     
             if any(isinstance(p, dict) and p.get("id") == current_user.id for p in players):
-                # Skip unresolved/voided matches (e.g. old records from before the
-                # quit-game fix, where winner_id was never set) — they aren't a
-                # real completed game and shouldn't count in stats or history.
-                if m.winner_id is None:
+                # Skip unresolved/voided matches. If winner_id is None but ended_at is set,
+                # it means a bot won, which should count as a completed game (loss).
+                if m.winner_id is None and m.ended_at is None:
                     continue
                 user_matches.append(m)
                 if m.winner_id == current_user.id:
@@ -341,6 +340,10 @@ async def _build_leaderboard(db: AsyncSession):
     game_counts = {}
     import json
     for m in all_matches:
+        # Skip ongoing or unresolved matches
+        if m.winner_id is None and m.ended_at is None:
+            continue
+            
         if m.winner_id and m.winner_id > 0:
             win_counts[m.winner_id] = win_counts.get(m.winner_id, 0) + 1
         # Count games for all players

@@ -473,11 +473,26 @@ class ConnectionManager:
                 res = await db.execute(stmt)
                 unlocked = {a.achievement_key for a in res.scalars().all()}
 
-                # Count user matches
+                # Count user matches (only completed ones)
                 all_matches_stmt = select(Match).order_by(Match.created_at.desc())
                 all_res = await db.execute(all_matches_stmt)
                 all_matches = all_res.scalars().all()
-                user_matches = [m for m in all_matches if any(pl["id"] == user_id for pl in (m.players or []))]
+                
+                user_matches = []
+                for m in all_matches:
+                    if m.winner_id is None and m.ended_at is None:
+                        continue
+                        
+                    players = m.players or []
+                    if isinstance(players, str):
+                        try:
+                            players = json.loads(players)
+                        except:
+                            players = []
+                            
+                    if any(isinstance(pl, dict) and pl.get("id") == user_id for pl in players):
+                        user_matches.append(m)
+                        
                 user_wins = [m for m in user_matches if m.winner_id == user_id]
 
                 to_unlock = []
