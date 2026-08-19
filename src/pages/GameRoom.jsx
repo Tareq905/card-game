@@ -27,8 +27,21 @@ export default function GameRoom() {
   const isDraggingChat = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const [draggedCardId, setDraggedCardId] = useState(null);
-  const [dropHighlight, setDropHighlight] = useState(false);
- 
+  const [mobileLayout, setMobileLayout] = useState(() => {
+    return window.innerWidth < window.innerHeight ? 'vertical' : 'horizontal';
+  });
+
+  // Auto-rotate/resize orientation detector
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setMobileLayout(window.innerWidth < window.innerHeight ? 'vertical' : 'horizontal');
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Stop background music during gameplay
   useEffect(() => {
     setIsInGame(true);
@@ -252,7 +265,7 @@ export default function GameRoom() {
   const iAmABystander = playerRanAway && gameState?.game_over;
 
   return (
-    <div className="game-table-container" style={{
+    <div className={`game-table-container layout-${mobileLayout}`} style={{
       backgroundImage: `radial-gradient(circle at center, ${tableColor} 0%, rgba(10, 14, 23, 1) 75%), url('/assets/cards/back/table-bg.png')`
     }}>
       {/* Leave confirmation modal */}
@@ -313,67 +326,86 @@ export default function GameRoom() {
       )}
 
       {/* HUD Header */}
-      <div style={{
+      <div className="hud-header" style={{
         width: '100%',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        zIndex: 50
+        zIndex: 50,
+        flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <button onClick={() => setShowLeaveConfirm(true)} className="btn-secondary" style={{ padding: '8px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)' }}>
-            <LogOut size={16} />
-            Leave Match
+        {/* Left group */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={() => setShowLeaveConfirm(true)} className="btn-secondary" style={{ padding: '7px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', fontSize: '13px' }}>
+            <LogOut size={15} />
+            <span className="hud-label-leave">Leave</span>
+          </button>
+          <button 
+            onClick={() => setMobileLayout(prev => prev === 'vertical' ? 'horizontal' : 'vertical')}
+            className="btn-secondary mobile-layout-toggle"
+            style={{ 
+              padding: '7px 12px', 
+              borderRadius: '10px', 
+              background: 'rgba(255,255,255,0.02)', 
+              fontSize: '13px',
+              display: 'none',
+            }}
+          >
+            📱 {mobileLayout === 'vertical' ? 'Vertical' : 'Horizontal'}
           </button>
           {/* Game mode badge */}
           {gameState.mode === 'poker' && (
-            <div style={{ fontSize: '12px', fontWeight: 700, background: 'rgba(139,92,246,0.2)', color: 'var(--accent-purple)', padding: '6px 14px', borderRadius: '10px', border: '1px solid rgba(139,92,246,0.3)' }}>
-              🃏 Poker Fusion Mode
+            <div style={{ fontSize: '11px', fontWeight: 700, background: 'rgba(139,92,246,0.2)', color: 'var(--accent-purple)', padding: '5px 10px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.3)', whiteSpace: 'nowrap' }}>
+              🃏 Poker Fusion
             </div>
           )}
           <div style={{
-            fontSize: '13px',
+            fontSize: '12px',
             color: isMyTurn ? 'var(--accent-green)' : 'var(--text-secondary)',
             fontWeight: 700,
             background: isMyTurn ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.02)',
-            padding: '8px 16px',
-            borderRadius: '10px',
-            border: isMyTurn ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(255,255,255,0.05)'
+            padding: '6px 12px',
+            borderRadius: '8px',
+            border: isMyTurn ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(255,255,255,0.05)',
+            whiteSpace: 'nowrap',
           }}>
-            {isMyTurn ? '🟢 YOUR TURN' : '⚪ WAITING ON OPPONENT'}
+            {isMyTurn ? '🟢 YOUR TURN' : '⚪ WAITING...'}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+        {/* Right group */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button
             onClick={() => setMuted(!muted)}
             style={{
               background: 'rgba(255,255,255,0.02)',
               border: '1px solid rgba(255,255,255,0.05)',
               borderRadius: '10px',
-              width: '38px',
-              height: '38px',
+              width: '36px',
+              height: '36px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              color: '#fff'
+              color: '#fff',
+              flexShrink: 0,
             }}
           >
-            {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>
           {gameState.active_color && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '6px',
               background: 'rgba(255,255,255,0.03)',
-              padding: '6px 14px',
-              borderRadius: '10px',
+              padding: '5px 10px',
+              borderRadius: '8px',
               border: '1px solid rgba(255,255,255,0.05)',
-              fontSize: '14px'
+              fontSize: '12px',
+              whiteSpace: 'nowrap',
             }}>
-              <span>Active Color:</span>
+              <span style={{ display: 'none' }} className="color-label">Color:</span>
               <span style={{
                 width: '14px',
                 height: '14px',
@@ -385,6 +417,7 @@ export default function GameRoom() {
                   yellow: 'var(--accent-yellow)'
                 }[gameState.active_color] || '#fff',
                 display: 'inline-block',
+                flexShrink: 0,
                 boxShadow: '0 0 8px rgba(255,255,255,0.2)'
               }} />
               <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{gameState.active_color}</span>
@@ -431,7 +464,7 @@ export default function GameRoom() {
               <div style={{ position: 'relative' }}>
                 {/* Animated ring when it's this player's turn */}
                 {isPlayerTurn && (
-                  <div style={{
+                  <div className="opponent-avatar-ring" style={{
                     position: 'absolute',
                     inset: '-6px',
                     borderRadius: '50%',
@@ -443,7 +476,7 @@ export default function GameRoom() {
                 )}
 
                 {/* Card count badge */}
-                <div style={{
+                <div className="opponent-card-count" style={{
                   position: 'absolute',
                   top: '-6px',
                   right: '-6px',
@@ -466,7 +499,7 @@ export default function GameRoom() {
                 </div>
 
                 {/* Avatar circle */}
-                <div style={{
+                <div className="opponent-avatar" style={{
                   width: '60px',
                   height: '60px',
                   borderRadius: '50%',
@@ -488,7 +521,7 @@ export default function GameRoom() {
               </div>
 
               {/* Player name */}
-              <span style={{
+              <span className="opponent-name" style={{
                 fontSize: '12px',
                 fontWeight: 700,
                 color: isPlayerTurn ? 'var(--accent-blue)' : '#fff',
@@ -566,7 +599,7 @@ export default function GameRoom() {
             border: isMyTurn ? '2px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(255,255,255,0.1)'
           }} />
           {isMyTurn && (
-            <div style={{
+            <div className="draw-hint" style={{
               position: 'absolute',
               bottom: '-25px',
               fontSize: '11px',
@@ -618,7 +651,7 @@ export default function GameRoom() {
         </div>
       </div>
 
-      {/* Chat Panel — draggable + minimizable */}
+      {/* Chat Panel — draggable on desktop, bottom-sheet on mobile */}
       <div
         ref={chatDragRef}
         className={`glass-panel chat-drawer ${chatMobileOpen ? 'open' : ''}`}
@@ -626,17 +659,20 @@ export default function GameRoom() {
         onPointerUp={onChatPointerUp}
         style={{
           position: 'fixed',
-          ...(chatPos.x !== null
+          // On mobile CSS overrides this; on desktop, use dragged pos or default
+          ...(window.innerWidth > 768 && chatPos.x !== null
             ? { left: chatPos.x, top: chatPos.y }
-            : { right: 20, top: 80 }
+            : window.innerWidth > 768
+              ? { right: 20, top: 80 }
+              : {}
           ),
-          width: '300px',
+          width: window.innerWidth > 768 ? '300px' : undefined,
           zIndex: 100,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           transition: isDraggingChat.current ? 'none' : 'height 0.2s ease',
-          height: chatMinimized ? '48px' : '420px',
+          height: window.innerWidth > 768 ? (chatMinimized ? '48px' : '420px') : undefined,
           userSelect: 'none',
         }}
       >
@@ -735,24 +771,28 @@ export default function GameRoom() {
         maxWidth: '800px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '15px',
+        gap: '10px',
         alignItems: 'center',
-        zIndex: 50
+        zIndex: 50,
+        flexShrink: 0,
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}>
         {/* Buttons Controls */}
-        <div className="action-buttons-container" style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+        <div className="action-buttons-container" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button
             onClick={handleYell}
             className="btn-danger"
             style={{
-              padding: '10px 20px',
+              padding: '10px 18px',
               fontSize: '13px',
               borderRadius: '10px',
               fontWeight: 800,
-              boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)'
+              boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)',
+              whiteSpace: 'nowrap',
             }}
           >
-            YELL "ONE LEFT" (Y)
+            <span className="btn-full-label">YELL "ONE LEFT" (Y)</span>
+            <span className="btn-short-label" style={{ display: 'none' }}>YELL ONE LEFT</span>
           </button>
           
           {isMyTurn && (
@@ -764,17 +804,18 @@ export default function GameRoom() {
                     if (card) playSelectedCard(card);
                   }}
                   className="btn-primary"
-                  style={{ padding: '10px 20px', fontSize: '13px', borderRadius: '10px' }}
+                  style={{ padding: '10px 18px', fontSize: '13px', borderRadius: '10px', whiteSpace: 'nowrap' }}
                 >
-                  Play Card
+                  ▶ Play Card
                 </button>
               )}
               <button
                 onClick={handlePass}
                 className="btn-secondary"
-                style={{ padding: '10px 20px', fontSize: '13px', borderRadius: '10px' }}
+                style={{ padding: '10px 18px', fontSize: '13px', borderRadius: '10px', whiteSpace: 'nowrap' }}
               >
-                Pass (P)
+                <span className="btn-full-label">Pass (P)</span>
+                <span className="btn-short-label" style={{ display: 'none' }}>Pass</span>
               </button>
             </>
           )}

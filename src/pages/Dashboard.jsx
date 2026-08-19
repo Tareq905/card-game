@@ -58,15 +58,18 @@ export default function Dashboard() {
     // Try to play immediately on dashboard entry
     playMusic();
     
-    // Start theme song only on interactions within the dashboard (fallback for browser policy)
-    const handleInteraction = (e) => {
-      if (e.target.closest('.dashboard-container')) {
-        playMusic();
-        document.removeEventListener('click', handleInteraction);
-      }
+    // Start theme song on any user interaction (fallback for mobile browser autoplay policy)
+    const handleInteraction = () => {
+      playMusic();
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
     };
     document.addEventListener('click', handleInteraction);
-    return () => document.removeEventListener('click', handleInteraction);
+    document.addEventListener('touchstart', handleInteraction);
+    return () => {
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+    };
   }, []);
 
   useEffect(() => {
