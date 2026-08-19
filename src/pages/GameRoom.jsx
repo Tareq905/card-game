@@ -27,6 +27,7 @@ export default function GameRoom() {
   const isDraggingChat = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const [draggedCardId, setDraggedCardId] = useState(null);
+  const [dropHighlight, setDropHighlight] = useState(false);
   const [mobileLayout, setMobileLayout] = useState(() => {
     return window.innerWidth < window.innerHeight ? 'vertical' : 'horizontal';
   });
